@@ -28,8 +28,16 @@ export interface LoadCaseInput {
   loads: LoadInput[];
 }
 
+/** Stödtyp: fri ände, fritt upplag eller fast inspänning. */
+export type SupportType = "free" | "pinned" | "fixed";
+
 export interface BeamInput {
-  span_m: number;
+  /** Fackens längder i m. Ett fack med en fri ände är en konsol eller ett överhäng. */
+  spans_m: number[];
+  /** Stödens typ från vänster, ett fler än antalet fack. Mellanstöd är fritt upplagda. */
+  supports: SupportType[];
+  /** Mönsterbelastning: variabel last fack för fack där den verkar ogynnsamt (EN 1992-1-1 5.1.3). */
+  pattern: boolean;
   b_mm: number;
   h_mm: number;
   cover_mm: number;
@@ -60,7 +68,9 @@ export interface BeamInput {
 }
 
 export const defaultBeam: BeamInput = {
-  span_m: 6,
+  spans_m: [6],
+  supports: ["pinned", "pinned"],
+  pattern: true,
   b_mm: 300,
   h_mm: 500,
   cover_mm: 30,
@@ -111,8 +121,8 @@ export const STEPS: StepDef[] = [
   {
     id: "geometry",
     title: "Geometri och tvärsnitt",
-    subtitle: "Spann, stöd, mått och täckskikt",
-    items: ["Balk och stöd", "Tvärsnitt", "Täckande betongskikt"],
+    subtitle: "Statiskt system, mått och täckskikt",
+    items: ["Statiskt system och stöd", "Tvärsnitt", "Täckande betongskikt"],
   },
   {
     id: "material",
@@ -137,7 +147,7 @@ export const STEPS: StepDef[] = [
 export function stepComplete(id: StepId, b: BeamInput): boolean {
   switch (id) {
     case "geometry":
-      return b.span_m > 0 && b.b_mm > 0 && b.h_mm > 0 && b.cover_mm > 0 && b.cover_mm < b.h_mm / 2;
+      return validSystem(b) && b.b_mm > 0 && b.h_mm > 0 && b.cover_mm > 0 && b.cover_mm < b.h_mm / 2;
     case "material":
       return Boolean(b.concrete && b.reinforcement && b.exposure.length > 0 && b.rh_percent >= 40 && b.t0_days > 0);
     case "loads":
@@ -154,3 +164,68 @@ export function stepComplete(id: StepId, b: BeamInput): boolean {
 let _seq = 100;
 /** Unikt id för nya lastfall och laster (bara för gränssnittet). */
 export const newId = (prefix: string) => `${prefix}${++_seq}`;
+
+/** Balkens totala längd i m (summan av facken). */
+export const beamLength = (b: Pick<BeamInput, "spans_m">) => b.spans_m.reduce((s, L) => s + L, 0);
+
+/** Stödens lägen i m från vänster ände. */
+export const supportX = (spans_m: number[]) => spans_m.reduce<number[]>((xs, L) => [...xs, xs[xs.length - 1] + L], [0]);
+
+/** Stödens beteckning: A, B, C … */
+export const supportLabel = (i: number) => String.fromCharCode(65 + i);
+
+export function validSystem(b: Pick<BeamInput, "spans_m" | "supports">): boolean {
+  const s = b.supports;
+  if (!b.spans_m.length || s.length !== b.spans_m.length + 1) return false;
+  if (!b.spans_m.every((L) => Number.isFinite(L) && L > 0)) return false;
+  if (s.slice(1, -1).some((x) => x === "free")) return false;
+  // Minst två upplag, eller en inspänning, annars är balken en mekanism.
+  const restraints = s.reduce((n, x) => n + (x === "pinned" ? 1 : x === "fixed" ? 2 : 0), 0);
+  return restraints >= 2;
+}
+
+export type SystemKind = "simple" | "cantilever" | "propped" | "fixed" | "continuous" | "overhang";
+
+/** Vanliga statiska system, med en förklaring för den som är ny. */
+export const SYSTEMS: Record<SystemKind, { label: string; help: string; make: (L: number, n: number) => Pick<BeamInput, "spans_m" | "supports"> }> = {
+  simple: {
+    label: "Fritt upplagd",
+    help: "Två upplag som tar vertikal kraft men låter balken vrida sig. Statiskt bestämd: M = qL²/8 i mitten.",
+    make: (L) => ({ spans_m: [L], supports: ["pinned", "pinned"] }),
+  },
+  cantilever: {
+    label: "Konsol",
+    help: "Fast inspänd i ena änden, fri i den andra. Störst moment (dragning i överkant) vid inspänningen: M = qL²/2.",
+    make: (L) => ({ spans_m: [L], supports: ["fixed", "free"] }),
+  },
+  propped: {
+    label: "Ensidigt inspänd",
+    help: "Inspänd i ena änden, fritt upplagd i den andra. Statiskt obestämd: stödmoment qL²/8 vid inspänningen.",
+    make: (L) => ({ spans_m: [L], supports: ["pinned", "fixed"] }),
+  },
+  fixed: {
+    label: "Tvåsidigt inspänd",
+    help: "Inspänd i båda ändar. Stödmoment qL²/12, fältmoment qL²/24. Full inspänning är sällsynt i verkligheten.",
+    make: (L) => ({ spans_m: [L], supports: ["fixed", "fixed"] }),
+  },
+  continuous: {
+    label: "Kontinuerlig",
+    help: "Går över flera stöd. Negativa stödmoment över mellanstöden, och variabel last placeras fack för fack (mönsterbelastning).",
+    make: (L, n) => ({ spans_m: Array(Math.max(2, n)).fill(L), supports: Array(Math.max(2, n) + 1).fill("pinned") }),
+  },
+  overhang: {
+    label: "Med överhäng",
+    help: "Fritt upplagd balk som fortsätter förbi stödet som en konsol. Last på överhänget minskar fältmomentet och kan lyfta det andra stödet.",
+    make: (L) => ({ spans_m: [L, Math.round(L * 3) / 10], supports: ["pinned", "pinned", "free"] }),
+  },
+};
+
+/** Vilket av de vanliga systemen balken är, om något. */
+export function systemKind(b: Pick<BeamInput, "spans_m" | "supports">): SystemKind | null {
+  const s = b.supports.join(",");
+  if (b.spans_m.length === 1)
+    return ({ "pinned,pinned": "simple", "fixed,free": "cantilever", "free,fixed": "cantilever", "pinned,fixed": "propped", "fixed,pinned": "propped", "fixed,fixed": "fixed" } as Record<string, SystemKind>)[s] ?? null;
+  if (b.supports.every((x) => x === "pinned")) return "continuous";
+  if (b.supports[0] === "free" || b.supports[b.supports.length - 1] === "free") return "overhang";
+  return null;
+}

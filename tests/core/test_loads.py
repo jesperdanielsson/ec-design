@@ -94,7 +94,7 @@ def test_textbook_example_with_eks():
         r" + 0{,}91 \cdot 1{,}5 \cdot 3"
     )
     de = design_effects(L6, r.cases, cs)
-    assert de.governing["uls"] == {"M": "6.10b-Q2", "V": "6.10b-Q2"}
+    assert de.governing["uls"]["M"] == de.governing["uls"]["V"] == "6.10b-Q2"
     # V = q_d L / 2 = 9,76385 · 3 = 29,29 kN
     assert de.design("uls", "V").V_abs.magnitude == pytest.approx(9.76385 * 3)
     assert all(s.ref for s in [*cs.log, *de.log])

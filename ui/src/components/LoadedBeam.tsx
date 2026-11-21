@@ -1,7 +1,10 @@
 import type { ResolvedCase } from "../api";
+import { supportX, type SupportType } from "../model";
+import { SpanDims, SupportGlyphs } from "./Supports";
 
 interface Props {
-  span_m: number;
+  spans_m: number[];
+  supports: SupportType[];
   cases: ResolvedCase[];
   highlight?: string | null;
 }
@@ -18,11 +21,14 @@ export function caseColor(cases: { kind: string }[], index: number): string {
 // Balken med alla lastfall, ett band per lastfall ovanför balken.
 // Utbredda laster ritas med höjd efter storlek, punktlaster som en pil. Uppåtriktad last
 // (t.ex. vindsug) ritas med pilar uppåt.
-export function LoadedBeam({ span_m, cases, highlight }: Props) {
+export function LoadedBeam({ spans_m, supports, cases, highlight }: Props) {
   const W = 480;
   const x0 = 34;
   const x1 = W - 16;
+  const span_m = spans_m.reduce((s, L) => s + L, 0) || 1;
   const sx = (x: number) => x0 + (x / span_m) * (x1 - x0);
+  const xsSup = supportX(spans_m).map(sx);
+  const cant = spans_m.map((_, j) => supports[j] === "free" || supports[j + 1] === "free");
   const qMax = Math.max(1e-9, ...cases.flatMap((c) => c.loads.map((l) => Math.abs(l.q ?? 0))));
   const height = (q: number) => 14 + (16 * Math.abs(q)) / qMax;
   // Bandens höjd: utbredda laster staplas på varandra, punktlaster behöver 40 px.
@@ -33,7 +39,7 @@ export function LoadedBeam({ span_m, cases, highlight }: Props) {
   });
   const top = 6;
   const yBeam = top + bands.reduce((s, b) => s + b, 0) + 10;
-  const H = yBeam + 58;
+  const H = yBeam + 72;
 
   let yCursor = top;
   return (
@@ -97,24 +103,8 @@ export function LoadedBeam({ span_m, cases, highlight }: Props) {
         );
       })}
       <rect x={x0} y={yBeam - 7} width={x1 - x0} height={14} rx={3} className="beam" />
-      <path d={`M${x0},${yBeam + 7} l-10,17 h20 z`} className="support" />
-      <path d={`M${x1},${yBeam + 7} l-10,15 h20 z`} className="support" />
-      <circle cx={x1 - 6} cy={yBeam + 27} r={2.5} className="support" />
-      <circle cx={x1 + 6} cy={yBeam + 27} r={2.5} className="support" />
-      <text x={x0 - 14} y={yBeam + 4} textAnchor="end" className="small">
-        A
-      </text>
-      <text x={x1 + 14} y={yBeam + 4} className="small" textAnchor="end">
-        B
-      </text>
-      <g className="dim">
-        <line x1={x0} x2={x1} y1={H - 8} y2={H - 8} />
-        <line x1={x0} x2={x0} y1={H - 14} y2={H - 2} />
-        <line x1={x1} x2={x1} y1={H - 14} y2={H - 2} />
-        <text x={(x0 + x1) / 2} y={H - 12} textAnchor="middle">
-          L = {fmt(span_m)} m
-        </text>
-      </g>
+      <SupportGlyphs supports={supports} xs={xsSup} y={yBeam + 7} beamH={14} size={8} />
+      <SpanDims xs={xsSup} spans_m={spans_m} y={H - 8} cantilevers={cant} />
     </svg>
   );
 }

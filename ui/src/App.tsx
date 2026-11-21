@@ -17,7 +17,7 @@ import { GeometryStep } from "./steps/GeometryStep";
 import { MaterialStep } from "./steps/MaterialStep";
 import { LoadsStep } from "./steps/LoadsStep";
 import { AnalysisStep } from "./steps/AnalysisStep";
-import { STEPS, defaultBeam, type BeamInput, type StepId } from "./model";
+import { STEPS, defaultBeam, validSystem, type BeamInput, type StepId } from "./model";
 
 export default function App() {
   const [beam, setBeam] = useState<BeamInput>(defaultBeam);
@@ -83,7 +83,7 @@ export default function App() {
     [beam.loadCases],
   );
   const loadsValid =
-    beam.span_m > 0 &&
+    validSystem(beam) &&
     beam.b_mm > 0 &&
     beam.h_mm > 0 &&
     beam.width_m > 0 &&
@@ -97,7 +97,16 @@ export default function App() {
     if (!loadsValid) return;
     let stale = false;
     api
-      .loads(beam.span_m, beam.b_mm, beam.h_mm, beam.width_m, beam.safety_class, casesPayload)
+      .loads(
+        { spans_m: beam.spans_m, supports: beam.supports },
+        beam.b_mm,
+        beam.h_mm,
+        beam.width_m,
+        beam.safety_class,
+        casesPayload,
+        beam.concrete,
+        beam.pattern,
+      )
       .then((r) => {
         if (stale) return;
         setLoads(r);
@@ -107,7 +116,7 @@ export default function App() {
     return () => {
       stale = true;
     };
-  }, [loadsValid, beam.span_m, beam.b_mm, beam.h_mm, beam.width_m, beam.safety_class, casesPayload]);
+  }, [loadsValid, beam.spans_m, beam.supports, beam.pattern, beam.concrete, beam.b_mm, beam.h_mm, beam.width_m, beam.safety_class, casesPayload]);
 
   const logs: CalcLog[] = useMemo(() => {
     if (active === "material")
@@ -155,7 +164,7 @@ export default function App() {
           </div>
         )}
 
-        {active === "geometry" && <GeometryStep beam={beam} update={update} cover={cover} />}
+        {active === "geometry" && <GeometryStep beam={beam} update={update} cover={cover} result={loads} />}
         {active === "material" && (
           <MaterialStep
             beam={beam}
@@ -172,7 +181,7 @@ export default function App() {
         {active === "loads" && (
           <LoadsStep beam={beam} update={update} options={loadOptions} result={loads} error={loadsError} />
         )}
-        {active === "analysis" && <AnalysisStep beam={beam} update={update} result={loads} />}
+        {active === "analysis" && <AnalysisStep beam={beam} update={update} result={loads} error={loadsError} />}
       </main>
 
       <aside className="log-panel" aria-label="Lösningsgång">

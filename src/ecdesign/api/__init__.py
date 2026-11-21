@@ -11,8 +11,10 @@ from __future__ import annotations
 from typing import Any
 
 from ..core import national
-from ..core.analysis.load_effects import design_effects
+from ..core.analysis.beam import BeamSystem, SupportType, gross_stiffness
+from ..core.analysis.load_effects import DesignEffects, Extreme, design_effects
 from ..core.analysis.simply_supported import simply_supported_udl
+from ..core.calclog import CalcLog
 from ..core.loads import (
     GROUPS,
     SAFETY_CLASSES,
@@ -234,25 +236,46 @@ class Api:
         safety_class: int,
         cases: list[dict[str, Any]],
         method: str | None = None,
+        system: dict[str, Any] | None = None,
+        concrete_class: str | None = "C30/37",
+        pattern: bool | None = None,
     ) -> dict[str, Any]:
-        """Lastfall, lastkombinationer och dimensionerande snittkrafter för balken.
+        """Lastfall, lastkombinationer, snittkrafter och nedböjning för balken.
 
         ``cases``: lista med ``{name, kind, category?, psi?, self_weight?, snow?: {sk, mu},
         loads: [{type: "udl" | "partial" | "point", value, unit: "kN/m" | "kN/m2" | "kN",
-        a_m?, b_m?}]}``.
+        a_m?, b_m?}]}``. Lägen mäts från balkens vänstra ände.
+        ``system``: ``{spans_m: [...], supports: ["pinned" | "fixed" | "free", ...]}``.
+        Saknas det är balken fritt upplagd med spännvidden ``span_m``.
+        ``concrete_class``: ger E_cm för nedböjningen (osprucket tvärsnitt). ``None``: ingen
+        nedböjning. ``pattern``: mönsterbelastning; standard enligt det nationella datasetet.
         """
         annex = national.load(self.annex_code)
-        span = Q_(span_m, "m")
+        if system:
+            beam = BeamSystem(
+                [Q_(float(x), "m") for x in system["spans_m"]],
+                [SupportType(x) for x in system["supports"]],
+            )
+        else:
+            beam = BeamSystem.simply_supported(Q_(span_m, "m"))
+        if pattern is None:
+            pattern = annex.get("analysis.pattern_loading") != "none"
+        b, h = Q_(b_mm, "mm"), Q_(h_mm, "mm")
         res = resolve_cases(
             [_case_from_dict(c) for c in cases],
-            span,
+            beam.length,
             width=Q_(width_m, "m"),
-            b=Q_(b_mm, "mm"),
-            h=Q_(h_mm, "mm"),
+            b=b,
+            h=h,
             annex=annex,
         )
         combos = generate_combinations(res.cases, int(safety_class), annex, method)
-        de = design_effects(span, res.cases, combos)
+        EI = None
+        stiff_log = CalcLog(title="Böjstyvhet för nedböjning")
+        if concrete_class:
+            Ecm = concrete(concrete_class, annex).Ecm
+            EI = gross_stiffness(Ecm, b, h, stiff_log)
+        de = design_effects(beam, res.cases, combos, EI=EI, pattern=bool(pattern))
         qd = {
             s.symbol: s.result
             for s in combos.log
@@ -272,6 +295,7 @@ class Api:
                     "loads": [_load_to_dict(ld) for ld in c.loads],
                 }
             )
+        labels = [beam.label(k) for k in range(len(beam.supports))]
         out_combos = []
         for e in de.effects:
             co = e.combination
@@ -288,14 +312,23 @@ class Api:
                     "latex": co.latex(),
                     "latex_numeric": co.latex_numeric(),
                     "factors": {t.case_id: round(t.unfav, 6) for t in co.terms},
-                    "q_d": _q(q, "kN/m") if q is not None else None,
+                    "q_d": _q(q, "kN/m") if q is not None and beam.n_spans == 1 else None,
                     "M_max": _q(e.M_max, "kN*m"),
                     "x_M_max": _q(e.x_M_max, "m"),
                     "M_min": _q(e.M_min, "kN*m"),
+                    "x_M_min": _q(e.x_M_min, "m"),
                     "V_abs": _q(e.V_abs, "kN"),
                     "x_V": _q(e.x_V, "m"),
                     "R_A": _q(e.R_A, "kN"),
                     "R_B": _q(e.R_B, "kN"),
+                    "reactions": [
+                        {"support": labels[k], "max": _q(r[0], "kN"), "min": _q(r[1], "kN")}
+                        for k, r in enumerate(e.reactions)
+                        if beam.supports[k] is not SupportType.FREE
+                    ],
+                    "w_max": _q(e.w_max, "mm") if e.w_max is not None else None,
+                    "x_w": _q(e.x_w, "m") if e.x_w is not None else None,
+                    "loaded_spans": {k: [j + 1 for j in v] for k, v in e.loaded_spans_M.items()},
                     "governs_M": gov.get("M") == co.id,
                     "governs_V": gov.get("V") == co.id,
                 }
@@ -304,32 +337,117 @@ class Api:
         for group, gov in de.governing.items():
             eM = de.get(gov["M"])
             eV = de.get(gov["V"])
+            eP = de.get(gov["M_pos"])
+            eN = de.get(gov["M_neg"])
+            eW = de.get(gov["w"]) if "w" in gov else None
             design[group] = {
                 "label": GROUPS[group],
                 "M": _q(eM.M_abs, "kN*m"),
-                "x_M": _q(eM.x_M_max if eM.M_abs == eM.M_max else eM.x_M_min, "m"),
+                "x_M": _q(eM.x_M_abs, "m"),
                 "V": _q(eV.V_abs, "kN"),
+                "x_V": _q(eV.x_V, "m"),
+                "M_pos": _q(eP.M_max, "kN*m"),
+                "x_M_pos": _q(eP.x_M_max, "m"),
+                "M_neg": _q(eN.M_min, "kN*m"),
+                "x_M_neg": _q(eN.x_M_min, "m"),
+                "w": _q(eW.w_max, "mm") if eW else None,
+                "x_w": _q(eW.x_w, "m") if eW else None,
                 "combination_M": eM.combination.id,
                 "combination_M_name": eM.combination.name,
                 "combination_V": eV.combination.id,
                 "combination_V_name": eV.combination.name,
+                "combination_M_pos_name": eP.combination.name,
+                "combination_M_neg_name": eN.combination.name,
+                "combination_w_name": eW.combination.name if eW else None,
+                **_per_span(de, beam, group, labels),
             }
         r6 = lambda vals: [round(v, 4) for v in vals]  # noqa: E731
+        case_diagrams = {}
+        for cid in de.case_M:
+            case_diagrams[cid] = {"M": r6(de.case_M[cid]), "V": r6(de.case_V[cid])}
+            if de.case_w:
+                case_diagrams[cid]["w"] = r6(de.case_w[cid])
+        xs_sup = beam.x_nodes()
         return {
             "gamma_d": combos.gamma_d,
+            "system": {
+                "description": beam.description,
+                "length": _q(beam.length, "m"),
+                "spans": [_q(L, "m") for L in beam.spans],
+                "supports": [
+                    {"label": labels[k], "type": s.value, "type_label": s.label, "x": xs_sup[k]}
+                    for k, s in enumerate(beam.supports)
+                ],
+                "pattern": de.pattern,
+                "EI": _q(EI, "kN*m^2") if EI is not None else None,
+            },
             "cases": out_cases,
             "combinations": out_combos,
             "design": design,
             "diagrams": {
                 "x": r6(de.x),
-                "cases": {
-                    cid: {"M": r6(de.case_M[cid]), "V": r6(de.case_V[cid])} for cid in de.case_M
-                },
+                "cases": case_diagrams,
                 **{g: {k: r6(v) for k, v in de.envelope(g).items()} for g in de.governing},
             },
-            "warnings": [*res.warnings, *combos.warnings],
-            "logs": [res.log.to_dict(), combos.log.to_dict(), de.log.to_dict()],
+            "warnings": [*res.warnings, *combos.warnings, *de.warnings],
+            "logs": [
+                res.log.to_dict(),
+                combos.log.to_dict(),
+                *([stiff_log.to_dict()] if len(stiff_log) else []),
+                de.log.to_dict(),
+            ],
         }
+
+
+def _extreme(e: Extreme | None, unit: str) -> dict[str, Any] | None:
+    if e is None:
+        return None
+    return {
+        "value": _q(e.value, unit),
+        "x": _q(e.x, "m"),
+        "loaded_spans": {k: [j + 1 for j in v] for k, v in e.loaded_spans.items()},
+    }
+
+
+def _per_span(de: DesignEffects, beam: BeamSystem, group: str, labels: list[str]) -> dict:
+    """Dimensionerande värden fack för fack och stöd för stöd i en grupp."""
+    members = [e for e in de.effects if e.combination.group == group]
+    spans = []
+    for j, L in enumerate(beam.spans):
+        bestM = max(members, key=lambda e: e.spans[j].M_max.value.magnitude)
+        row: dict[str, Any] = {
+            "index": j + 1,
+            "length": _q(L, "m"),
+            "cantilever": beam.is_cantilever_span(j),
+            "M": _extreme(bestM.spans[j].M_max, "kN*m"),
+            "combination_M": bestM.combination.name,
+        }
+        if members[0].spans[j].w_max is not None:
+            bestW = max(members, key=lambda e: e.spans[j].w_max.value.magnitude)
+            row["w"] = _extreme(bestW.spans[j].w_max, "mm")
+            row["combination_w"] = bestW.combination.name
+            w = bestW.spans[j].w_max.value.magnitude
+            row["L_over_w"] = round(L.to("mm").magnitude / w) if w > 1e-6 else None
+        spans.append(row)
+    supports = []
+    for k, s in enumerate(beam.supports):
+        if s is SupportType.FREE:
+            continue
+        bestM = min(members, key=lambda e: e.support_M[k].magnitude)
+        bestR = max(members, key=lambda e: e.reactions[k][0].magnitude)
+        minR = min(members, key=lambda e: e.reactions[k][1].magnitude)
+        supports.append(
+            {
+                "label": labels[k],
+                "type": s.value,
+                "M": _q(bestM.support_M[k], "kN*m"),
+                "combination_M": bestM.combination.name,
+                "R_max": _q(bestR.reactions[k][0], "kN"),
+                "combination_R": bestR.combination.name,
+                "R_min": _q(minR.reactions[k][1], "kN"),
+            }
+        )
+    return {"spans": spans, "supports": supports}
 
 
 def _case_from_dict(d: dict[str, Any]) -> LoadCase:

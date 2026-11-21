@@ -4,7 +4,7 @@ import { StressStrainChart } from "../components/StressStrainChart";
 import { LineChart, TIME_TICKS } from "../components/LineChart";
 import { Tex } from "../components/Tex";
 import type { ConcreteResult, CoverResult, LongTermResult, MaterialOptions, ReinforcementResult } from "../api";
-import type { BeamInput } from "../model";
+import { beamLength, type BeamInput } from "../model";
 
 interface Props {
   beam: BeamInput;
@@ -429,8 +429,8 @@ export function MaterialStep({ beam, update, classes, grades, concrete, reinforc
               Betongen krymper utan last: autogen krympning när cementet reagerar (de första veckorna) och
               uttorkningskrympning när fukt lämnar betongen (under många år). Om krympningen hindras av armering eller stöd
               uppstår dragspänningar och sprickor, och en osymmetriskt armerad balk böjer ut. En krympning på{" "}
-              {fmt(longTerm.shrinkage.eps_cs_inf, 2)} ‰ motsvarar {fmt(longTerm.shrinkage.eps_cs_inf * beam.span_m, 1)} mm
-              förkortning av en {fmt(beam.span_m, 1)} m lång balk.
+              {fmt(longTerm.shrinkage.eps_cs_inf, 2)} ‰ motsvarar {fmt(longTerm.shrinkage.eps_cs_inf * beamLength(beam), 1)} mm
+              förkortning av en {fmt(beamLength(beam), 1)} m lång balk.
               <Ref>EN 1992-1-1 3.1.4(6), ekv. (3.8)–(3.13), tabell 3.3 och bilaga B.2</Ref>
             </Explain>
           </>

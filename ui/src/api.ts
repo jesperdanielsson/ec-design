@@ -124,10 +124,43 @@ export interface CombinationResult {
   M_min: number;
   V_abs: number;
   x_V: number;
+  x_M_min: number;
   R_A: number;
   R_B: number;
+  reactions: { support: string; max: number; min: number }[];
+  w_max: number | null;
+  x_w: number | null;
+  /** Belastade fack (från 1) för variabla lastfall vid största fältmoment. */
+  loaded_spans: Record<string, number[]>;
   governs_M: boolean;
   governs_V: boolean;
+}
+
+export interface ExtremeValue {
+  value: number;
+  x: number;
+  loaded_spans: Record<string, number[]>;
+}
+
+export interface SpanDesign {
+  index: number;
+  length: number;
+  cantilever: boolean;
+  M: ExtremeValue;
+  combination_M: string;
+  w?: ExtremeValue;
+  combination_w?: string;
+  L_over_w?: number | null;
+}
+
+export interface SupportDesign {
+  label: string;
+  type: "pinned" | "fixed";
+  M: number;
+  combination_M: string;
+  R_max: number;
+  combination_R: string;
+  R_min: number;
 }
 
 export interface DesignValues {
@@ -135,10 +168,31 @@ export interface DesignValues {
   M: number;
   x_M: number;
   V: number;
+  x_V: number;
+  M_pos: number;
+  x_M_pos: number;
+  M_neg: number;
+  x_M_neg: number;
+  w: number | null;
+  x_w: number | null;
   combination_M: string;
   combination_M_name: string;
   combination_V: string;
   combination_V_name: string;
+  combination_M_pos_name: string;
+  combination_M_neg_name: string;
+  combination_w_name: string | null;
+  spans: SpanDesign[];
+  supports: SupportDesign[];
+}
+
+export interface SystemResult {
+  description: string;
+  length: number;
+  spans: number[];
+  supports: { label: string; type: "free" | "pinned" | "fixed"; type_label: string; x: number }[];
+  pattern: boolean;
+  EI: number | null;
 }
 
 export interface Envelope {
@@ -146,14 +200,17 @@ export interface Envelope {
   M_min: number[];
   V_max: number[];
   V_min: number[];
+  w_max?: number[];
+  w_min?: number[];
 }
 
 export interface LoadsResult {
   gamma_d: number;
+  system: SystemResult;
   cases: ResolvedCase[];
   combinations: CombinationResult[];
   design: Record<string, DesignValues>;
-  diagrams: { x: number[]; cases: Record<string, { M: number[]; V: number[] }> } & Record<string, Envelope>;
+  diagrams: { x: number[]; cases: Record<string, { M: number[]; V: number[]; w?: number[] }> } & Record<string, Envelope>;
   warnings: string[];
   logs: CalcLog[];
 }
@@ -215,8 +272,16 @@ export const api = {
   reinforcementGrades: () => call<string[]>("reinforcement_grades"),
   reinforcement: (name: string) => call<ReinforcementResult>("reinforcement", name),
   loadOptions: () => call<LoadOptions>("load_options"),
-  loads: (spanM: number, bMm: number, hMm: number, widthM: number, safetyClass: number, cases: unknown[]) =>
-    call<LoadsResult>("loads", spanM, bMm, hMm, widthM, safetyClass, cases),
+  loads: (
+    system: { spans_m: number[]; supports: string[] },
+    bMm: number,
+    hMm: number,
+    widthM: number,
+    safetyClass: number,
+    cases: unknown[],
+    concrete: string,
+    pattern: boolean,
+  ) => call<LoadsResult>("loads", 0, bMm, hMm, widthM, safetyClass, cases, null, system, concrete, pattern),
   simplySupported: (spanM: number, qKNm: number) =>
     call<SimplySupportedResult>("simply_supported", spanM, qKNm),
 };

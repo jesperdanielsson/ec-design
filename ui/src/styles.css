@@ -135,7 +135,7 @@ details.later summary { cursor: pointer; font-weight: 500; }
 .toggle.disabled { cursor: default; opacity: 0.75; }
 .toggle-label { font-weight: 500; }
 
-.results { display: flex; gap: 12px; margin: 12px 0; }
+.results { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 12px 0; }
 .result { flex: 1; background: var(--surface-2); border-radius: 8px; padding: 12px; }
 .result-label { font-size: 12px; color: var(--muted); }
 .result-value { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -146,6 +146,14 @@ details.later summary { cursor: pointer; font-weight: 500; }
 .diagram .small { font-size: 11px; fill: var(--muted); }
 .diagram .beam { fill: var(--concrete); stroke: var(--muted); }
 .diagram .support { fill: none; stroke: var(--text); stroke-width: 1.5; }
+.diagram .support.wall { stroke-width: 2.5; }
+.diagram .support.hatch { stroke-width: 1; }
+.diagram .support-label { font-size: 11px; font-weight: 600; fill: var(--muted); }
+.force-diagram .fd-support { stroke: var(--border); stroke-dasharray: 2 3; }
+.system-picker { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.span-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.tabs { display: flex; gap: 4px; margin: 4px 0 10px; flex-wrap: wrap; }
 .diagram .dim line { stroke: var(--muted); }
 .diagram .load line { stroke: var(--accent); stroke-width: 1.5; }
 .diagram .load text { fill: var(--accent); font-weight: 600; }
@@ -265,14 +273,7 @@ details.later summary { cursor: pointer; font-weight: 500; }
 .force-diagram .fd-title { fill: var(--muted); font-weight: 600; font-style: italic; }
 .force-diagram .fd-line { fill: none; stroke-width: 2; }
 .force-diagram .fd-fill { stroke: none; }
-.force-diagram .fd-uls .fd-line { stroke: var(--accent); }
-.force-diagram .fd-uls .fd-fill { fill: var(--accent); fill-opacity: 0.12; }
-.force-diagram .fd-qp .fd-line { stroke: var(--steel); }
 .force-diagram .fd-line.dashed { stroke-dasharray: 5 4; }
-.force-diagram .fd-note circle { fill: var(--accent); }
-.force-diagram .fd-note text { fill: var(--accent); font-weight: 600; font-size: 12px; }
-.legend-swatch.fd-uls { border-top-color: var(--accent); }
-.legend-swatch.fd-qp { border-top-color: var(--steel); }
 
 .result.accent { background: var(--accent-soft); }
 .result.accent .result-value { color: var(--accent); }
@@ -306,3 +307,17 @@ details.later summary { cursor: pointer; font-weight: 500; }
 .combo-table .factors { font-size: 12px; color: var(--muted); }
 .factor { display: inline-block; margin-right: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .combo-table td:first-child { min-width: 210px; }
+.warning-text { color: var(--warn, #b45309); font-weight: 600; }
+
+/* Diagramfärger: moment rött, tvärkraft blått, nedböjning grönt. */
+:root { --fd-M: #c62828; --fd-V: #1f5fc4; --fd-w: #2e7d32; }
+@media (prefers-color-scheme: dark) { :root { --fd-M: #ef6b6b; --fd-V: #6f9cf0; --fd-w: #66bb6a; } }
+.fd-M { --fd: var(--fd-M); }
+.fd-V { --fd: var(--fd-V); }
+.fd-w { --fd: var(--fd-w); }
+.force-diagram .fd-line { stroke: var(--fd); }
+.force-diagram .fd-fill { fill: var(--fd); fill-opacity: 0.14; }
+.force-diagram .fd-faint .fd-line { stroke-width: 1.5; opacity: 0.8; }
+.force-diagram .fd-note circle { fill: var(--fd); }
+.force-diagram .fd-note text { fill: var(--fd); font-weight: 600; font-size: 12px; }
+.legend-swatch.fd-swatch { border-top-color: var(--fd); }

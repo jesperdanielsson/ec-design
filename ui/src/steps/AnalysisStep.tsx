@@ -1,10 +1,14 @@
+import { useState } from "react";
 import type { LoadsResult } from "../api";
-import type { BeamInput } from "../model";
+import { ForceDiagram } from "../components/ForceDiagram";
+import { Tex } from "../components/Tex";
+import { beamLength, supportX, type BeamInput } from "../model";
 
 interface Props {
   beam: BeamInput;
   update: (patch: Partial<BeamInput>) => void;
   result?: LoadsResult;
+  error?: string;
 }
 
 function Toggle({ label, help, checked, disabled, onChange }: {
@@ -26,10 +30,31 @@ function Toggle({ label, help, checked, disabled, onChange }: {
   );
 }
 
-export function AnalysisStep({ beam, update, result }: Props) {
+const GROUPS = [
+  { id: "uls", label: "Brottgräns", sub: "Ed" },
+  { id: "characteristic", label: "Karakteristisk", sub: "Ek" },
+  { id: "frequent", label: "Frekvent", sub: "Ek" },
+  { id: "quasi_permanent", label: "Kvasipermanent", sub: "Ek" },
+] as const;
+
+const fmt = (v?: number | null, d = 1) =>
+  v === undefined || v === null || !Number.isFinite(v) ? "–" : v.toLocaleString("sv-SE", { maximumFractionDigits: d });
+
+const spansText = (ls: Record<string, number[]>) =>
+  Object.entries(ls)
+    .map(([id, sp]) => `${id} på fack ${sp.join(", ") || "inget"}`)
+    .join("; ");
+
+export function AnalysisStep({ beam, update, result, error }: Props) {
   const a = beam.analysis;
   const set = (patch: Partial<BeamInput["analysis"]>) => update({ analysis: { ...a, ...patch } });
-  const fmt = (v?: number) => (v === undefined ? "–" : v.toLocaleString("sv-SE", { maximumFractionDigits: 1 }));
+  const [group, setGroup] = useState<(typeof GROUPS)[number]["id"]>("uls");
+  const g = GROUPS.find((x) => x.id === group)!;
+  const design = result?.design[group];
+  const env = result?.diagrams[group];
+  const span = beamLength(beam);
+  const supX = supportX(beam.spans_m);
+  const sls = group !== "uls";
   return (
     <div className="step-grid">
       <section className="card">
@@ -43,34 +68,153 @@ export function AnalysisStep({ beam, update, result }: Props) {
           checked={a.cracking}
           onChange={(v) => set({ cracking: v })}
         />
+        <h2>Så räknas snittkrafterna</h2>
+        <ul className="muted small">
+          <li>Linjärelastisk analys med konstant böjstyvhet (EN 1992-1-1 5.4), ingen momentomfördelning (5.5).</li>
+          <li>Varje lastfall räknas för sig och kombineras i varje snitt med kombinationens faktorer.</li>
+          {beam.spans_m.length > 1 && (
+            <li>
+              {result?.system.pattern
+                ? "Variabel last placeras fack för fack där den verkar ogynnsamt (mönsterbelastning, 5.1.3). Permanent last ligger på alla fack med samma faktor."
+                : "Mönsterbelastning är avstängd: variabel last ligger alltid på hela balken."}
+            </li>
+          )}
+          <li>
+            Nedböjningen gäller osprucket betongtvärsnitt med E<sub>cm</sub>, korttid
+            {result?.system.EI ? ` (EI = ${fmt(result.system.EI / 1000, 1)} MNm²)` : ""}. Sprickor och krypning (7.4.3) kommer i
+            bruksgränssteget.
+          </li>
+        </ul>
       </section>
 
       <section className="card visual">
-        <h2>Dimensionerande snittkrafter</h2>
-        <p className="muted small">Från laststeget: den ogynnsammaste kombinationen i varje grupp enligt EKS.</p>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Gränstillstånd</th>
-              <th className="num">M (kNm)</th>
-              <th className="num">V (kN)</th>
-              <th>Kombination</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result &&
-              Object.entries(result.design).map(([g, d]) => (
-                <tr key={g}>
-                  <td>{d.label}</td>
-                  <td className="num">{fmt(d.M)}</td>
-                  <td className="num">{fmt(d.V)}</td>
-                  <td className="muted small">{d.combination_M_name}</td>
+        <h2>Snittkrafter{result ? `: ${result.system.description.toLowerCase()}` : ""}</h2>
+        {error && <p className="warning">{error}</p>}
+        <div className="tabs" role="tablist">
+          {GROUPS.map((x) => (
+            <button key={x.id} role="tab" aria-selected={group === x.id} className={`chip${group === x.id ? " active" : ""}`} onClick={() => setGroup(x.id)}>
+              {x.label}
+            </button>
+          ))}
+        </div>
+        {design && env && result && (
+          <>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Fack</th>
+                  <th className="num">
+                    <Tex tex={`M_{${g.sub}}`} /> fält (kNm)
+                  </th>
+                  {sls && <th className="num">δ (mm)</th>}
+                  {sls && <th className="num">L/δ</th>}
+                  <th>Kombination och lastuppställning</th>
                 </tr>
-              ))}
-          </tbody>
-        </table>
-        <h2>Utnyttjandegrader</h2>
-        <p className="muted small">Böjning, tvärkraft och bruksgränskontroller visas här med färg när de är byggda.</p>
+              </thead>
+              <tbody>
+                {design.spans.map((s) => (
+                  <tr key={s.index}>
+                    <td>
+                      {s.cantilever ? "Konsol" : "Fack"} {s.index}
+                      <span className="muted small block">L = {fmt(s.length, 2)} m</span>
+                    </td>
+                    <td className="num">{s.M.value > 1e-6 ? fmt(s.M.value) : "–"}</td>
+                    {sls && <td className="num">{fmt(s.w?.value, 2)}</td>}
+                    {sls && <td className="num">{s.L_over_w ? `L/${s.L_over_w}` : "–"}</td>}
+                    <td className="muted small">
+                      {((sls ? s.w : s.M)?.value ?? 0) > 1e-6 ? (sls ? s.combination_w : s.combination_M) : "Inget fältmoment (se stödmomentet)"}
+                      {((sls ? s.w : s.M)?.value ?? 0) > 1e-6 && Object.keys((sls ? s.w : s.M)?.loaded_spans ?? {}).length > 0 && (
+                        <span className="block">{spansText((sls ? s.w : s.M)!.loaded_spans)}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Stöd</th>
+                  <th className="num">
+                    <Tex tex={`M_{${g.sub}}`} /> stöd (kNm)
+                  </th>
+                  <th className="num">R max (kN)</th>
+                  <th className="num">R min (kN)</th>
+                  <th>Kombination</th>
+                </tr>
+              </thead>
+              <tbody>
+                {design.supports.map((s) => (
+                  <tr key={s.label}>
+                    <td>
+                      {s.label}
+                      <span className="muted small block">{s.type === "fixed" ? "Inspänning" : "Upplag"}</span>
+                    </td>
+                    <td className="num">{s.M < -1e-6 ? fmt(s.M) : "0"}</td>
+                    <td className="num">{fmt(s.R_max)}</td>
+                    <td className={`num${s.R_min < -1e-6 ? " warning-text" : ""}`}>{fmt(s.R_min)}</td>
+                    <td className="muted small">{s.M < -1e-6 ? s.combination_M : s.combination_R}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="muted small">
+              Moment ritas på dragen sida: fältmoment nedåt, stödmoment uppåt. Stödmoment räknas i stödets centrum. R min
+              under noll betyder att stödet kan lyftas. Den skuggade ytan i diagrammen är omhyllningen: i varje snitt
+              största och minsta värde av alla kombinationer och lastuppställningar i gruppen.
+            </p>
+            <ForceDiagram
+              title="M"
+              quantity="M"
+              x={result.diagrams.x}
+              span_m={span}
+              supports_x={supX}
+              unit="kNm"
+              downPositive
+              series={[
+                { label: "Omhyllning", values: env.M_max, fill: "pos" as const },
+                { label: "Omhyllning, min", values: env.M_min, fill: "neg" as const, legend: false },
+              ]}
+              annotate={[
+                ...(design.M_pos > 1e-6 ? [{ x: design.x_M_pos, value: design.M_pos, label: "max" }] : []),
+                ...(design.M_neg < -1e-6 ? [{ x: design.x_M_neg, value: design.M_neg, label: "min" }] : []),
+              ]}
+            />
+            <ForceDiagram
+              title="V"
+              quantity="V"
+              x={result.diagrams.x}
+              span_m={span}
+              supports_x={supX}
+              unit="kN"
+              series={[
+                { label: "Omhyllning", values: env.V_max, fill: "pos" as const },
+                { label: "Omhyllning, min", values: env.V_min, fill: "neg" as const, legend: false },
+              ]}
+            />
+            {sls && env.w_max && (
+              <ForceDiagram
+                title="δ"
+                quantity="w"
+                x={result.diagrams.x}
+                span_m={span}
+                supports_x={supX}
+                unit="mm"
+                downPositive
+                series={[
+                  { label: "Omhyllning", values: env.w_max, fill: "pos" as const },
+                  ...(env.w_min ? [{ label: "Omhyllning, min", values: env.w_min, fill: "neg" as const, legend: false }] : []),
+                ]}
+                annotate={design.w != null && design.x_w != null ? [{ x: design.x_w, value: design.w, label: "δ" }] : []}
+              />
+            )}
+            {result.warnings.map((w) => (
+              <p key={w} className="warning">
+                {w}
+              </p>
+            ))}
+          </>
+        )}
       </section>
     </div>
   );
