@@ -13,6 +13,8 @@ interface Props {
   x: number[];
   series: ForceSeries[];
   span_m: number;
+  /** Stödens lägen i m: ritas som tunna lodlinjer. */
+  supports_x?: number[];
   unit: string;
   /** true: positivt värde ritas nedåt (moment). */
   downPositive?: boolean;
@@ -22,7 +24,7 @@ interface Props {
 
 const fmt = (v: number, d = 1) => v.toLocaleString("sv-SE", { maximumFractionDigits: d });
 
-export function ForceDiagram({ x, series, span_m, unit, downPositive = false, title, annotate = [] }: Props) {
+export function ForceDiagram({ x, series, span_m, supports_x = [], unit, downPositive = false, title, annotate = [] }: Props) {
   const W = 480;
   const H = 150;
   const x0 = 34;
@@ -45,6 +47,9 @@ export function ForceDiagram({ x, series, span_m, unit, downPositive = false, ti
         <text x={8} y={yZero + 4} className="fd-title">
           {title}
         </text>
+        {supports_x.map((xs, i) => (
+          <line key={i} x1={sx(xs)} x2={sx(xs)} y1={6} y2={H - 6} className="fd-support" />
+        ))}
         <line x1={x0} x2={x1} y1={yZero} y2={yZero} className="fd-axis" />
         {series.map((s) => (
           <g key={s.label} className={s.className}>

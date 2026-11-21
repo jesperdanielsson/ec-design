@@ -4,7 +4,7 @@ import { NumberField } from "../components/Field";
 import { ForceDiagram } from "../components/ForceDiagram";
 import { LoadedBeam, caseColor } from "../components/LoadedBeam";
 import { Tex } from "../components/Tex";
-import { newId, type BeamInput, type LoadCaseInput, type LoadInput, type LoadType } from "../model";
+import { beamLength, newId, supportX, type BeamInput, type LoadCaseInput, type LoadInput, type LoadType } from "../model";
 
 interface Props {
   beam: BeamInput;
@@ -18,7 +18,7 @@ const fmt = (v: number | null | undefined, d = 2) =>
   v === null || v === undefined || !Number.isFinite(v) ? "–" : v.toLocaleString("sv-SE", { maximumFractionDigits: d });
 
 const TYPE_LABEL: Record<LoadType, string> = {
-  udl: "Utbredd, hela spannet",
+  udl: "Utbredd, hela balken",
   partial: "Delutbredd",
   point: "Punktlast",
 };
@@ -101,6 +101,12 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
             help="Bredden av bjälklaget som balken bär (c/c-avstånd mellan balkarna). Ytlaster i kN/m² multipliceras med c och blir linjelaster i kN/m."
             onChange={(v) => update({ width_m: v })}
           />
+          {beam.spans_m.length > 1 && (
+            <label className="check" title="EN 1992-1-1 5.1.3 och Bärande konstruktioner del 1 fig. K1.12: en fri variabel last placeras där den verkar ogynnsamt. Programmet prövar varje fack för sig, vilket täcker de förenklade uppställningarna (a) varannat fack och (b) två intilliggande fack.">
+              <input type="checkbox" checked={beam.pattern} onChange={(e) => update({ pattern: e.target.checked })} />
+              Mönsterbelastning: variabel last fack för fack där den verkar ogynnsamt
+            </label>
+          )}
         </section>
 
         <section className="card">
@@ -244,7 +250,7 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
                               type,
                               unit: type === "point" ? "kN" : l.unit === "kN" ? "kN/m" : l.unit,
                               a_m: type === "udl" ? undefined : (l.a_m ?? 0),
-                              b_m: type === "partial" ? (l.b_m ?? beam.span_m / 2) : undefined,
+                              b_m: type === "partial" ? (l.b_m ?? beamLength(beam) / 2) : undefined,
                             });
                           }}
                         >
@@ -287,7 +293,7 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
                         </button>
                       </div>
                       {l.type !== "udl" && (
-                        <div className="load-pos" title="Läge mätt från vänster stöd A">
+                        <div className="load-pos" title="Läge mätt från balkens vänstra ände A">
                           <span>{l.type === "point" ? "Läge" : "Från"}</span>
                           <span className="field-input compact">
                             <input type="number" step={0.1} aria-label="a" value={l.a_m ?? 0} onChange={(e) => setLoad(lc, l.id, { a_m: parseFloat(e.target.value) })} />
@@ -297,12 +303,12 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
                             <>
                               <span>till</span>
                               <span className="field-input compact">
-                                <input type="number" step={0.1} aria-label="b" value={l.b_m ?? beam.span_m} onChange={(e) => setLoad(lc, l.id, { b_m: parseFloat(e.target.value) })} />
+                                <input type="number" step={0.1} aria-label="b" value={l.b_m ?? beamLength(beam)} onChange={(e) => setLoad(lc, l.id, { b_m: parseFloat(e.target.value) })} />
                                 <span className="unit">m</span>
                               </span>
                             </>
                           )}
-                          <span className="muted">från stöd A</span>
+                          <span className="muted">från vänster ände A</span>
                         </div>
                       )}
                     </div>
@@ -332,7 +338,7 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
         <section className="card">
           <h2>Laster på balken (karakteristiska värden)</h2>
           {error && <p className="warning">{error}</p>}
-          {result && <LoadedBeam span_m={beam.span_m} cases={result.cases} highlight={hover} />}
+          {result && <LoadedBeam spans_m={beam.spans_m} supports={beam.supports} cases={result.cases} highlight={hover} />}
           {result?.warnings.map((w) => (
             <p key={w} className="warning">
               {w}
@@ -340,7 +346,7 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
           ))}
         </section>
 
-        {result && <DesignSummary result={result} gammaD={gammaD} safetyClass={beam.safety_class} span={beam.span_m} />}
+        {result && <DesignSummary result={result} gammaD={gammaD} safetyClass={beam.safety_class} beam={beam} />}
       </div>
       {result && (
         <div className="full-row">
@@ -351,43 +357,63 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
   );
 }
 
-function DesignSummary({ result, gammaD, safetyClass, span }: { result: LoadsResult; gammaD?: number; safetyClass: number; span: number }) {
+function DesignSummary({ result, gammaD, safetyClass, beam }: { result: LoadsResult; gammaD?: number; safetyClass: number; beam: BeamInput }) {
   const uls = result.design.uls;
   const qp = result.design.quasi_permanent;
   const d = result.diagrams;
+  const span = beamLength(beam);
+  const supX = supportX(beam.spans_m);
+  const hasNeg = (uls?.M_neg ?? 0) < -1e-6;
+  const hasPos = (uls?.M_pos ?? 0) > 1e-6;
   return (
     <section className="card">
       <h2>Dimensionerande snittkrafter</h2>
       <div className="results">
+        {hasPos && (
+          <div className="result accent">
+            <div className="result-label">
+              Fältmoment <Tex tex="M_{Ed}" />
+            </div>
+            <div className="result-value">
+              {fmt(uls?.M_pos, 1)} <span className="unit">kNm</span>
+            </div>
+            <div className="result-sub">{uls?.combination_M_pos_name}</div>
+          </div>
+        )}
+        {hasNeg && (
+          <div className="result accent">
+            <div className="result-label">
+              Stödmoment <Tex tex="M_{Ed}^{-}" />
+            </div>
+            <div className="result-value">
+              {fmt(uls?.M_neg, 1)} <span className="unit">kNm</span>
+            </div>
+            <div className="result-sub">{uls?.combination_M_neg_name}</div>
+          </div>
+        )}
         <div className="result accent">
           <div className="result-label">
-            Moment, brottgräns <Tex tex="M_{Ed}" />
-          </div>
-          <div className="result-value">
-            {fmt(uls?.M, 1)} <span className="unit">kNm</span>
-          </div>
-          <div className="result-sub">{uls?.combination_M_name}</div>
-        </div>
-        <div className="result accent">
-          <div className="result-label">
-            Tvärkraft, brottgräns <Tex tex="V_{Ed}" />
+            Tvärkraft <Tex tex="V_{Ed}" />
           </div>
           <div className="result-value">
             {fmt(uls?.V, 1)} <span className="unit">kN</span>
           </div>
           <div className="result-sub">{uls?.combination_V_name}</div>
         </div>
-        <div className="result">
-          <div className="result-label">Moment, kvasipermanent</div>
-          <div className="result-value">
-            {fmt(qp?.M, 1)} <span className="unit">kNm</span>
+        {qp?.w != null && (
+          <div className="result">
+            <div className="result-label">Nedböjning, kvasipermanent</div>
+            <div className="result-value">
+              {fmt(qp.w, 1)} <span className="unit">mm</span>
+            </div>
+            <div className="result-sub">Elastisk, osprucket, korttid</div>
           </div>
-          <div className="result-sub">Krypning, sprickor, nedböjning</div>
-        </div>
+        )}
       </div>
       <p className="muted small">
         Säkerhetsklass {safetyClass} ger γd = {fmt(gammaD)}. Diagrammen visar omhyllningen av alla kombinationer i
         brottgräns och den kvasipermanenta kombinationen.
+        {result.system.pattern && " Variabel last är placerad fack för fack där den verkar ogynnsamt."}
       </p>
       {d.uls && (
         <>
@@ -395,22 +421,27 @@ function DesignSummary({ result, gammaD, safetyClass, span }: { result: LoadsRes
             title="M"
             x={d.x}
             span_m={span}
+            supports_x={supX}
             unit="kNm"
             downPositive
             series={[
-              { label: "Brottgräns (omhyllning)", values: d.uls.M_max, className: "fd-uls", fill: true },
-              ...(d.uls.M_min.some((v) => v < -1e-6) ? [{ label: "Brottgräns, negativt", values: d.uls.M_min, className: "fd-uls" }] : []),
+              { label: "Brottgräns, max", values: d.uls.M_max, className: "fd-uls", fill: true },
+              ...(d.uls.M_min.some((v) => v < -1e-6) ? [{ label: "Brottgräns, min", values: d.uls.M_min, className: "fd-uls", fill: true }] : []),
               { label: "Kvasipermanent", values: d.quasi_permanent.M_max, className: "fd-qp", dashed: true },
             ]}
-            annotate={uls ? [{ x: uls.x_M, value: uls.M, label: "M_Ed" }] : []}
+            annotate={[
+              ...(hasPos && uls ? [{ x: uls.x_M_pos, value: uls.M_pos, label: "M_Ed" }] : []),
+              ...(hasNeg && uls ? [{ x: uls.x_M_neg, value: uls.M_neg, label: "M_Ed" }] : []),
+            ]}
           />
           <ForceDiagram
             title="V"
             x={d.x}
             span_m={span}
+            supports_x={supX}
             unit="kN"
             series={[
-              { label: "Brottgräns (omhyllning)", values: d.uls.V_max, className: "fd-uls", fill: true },
+              { label: "Brottgräns, max", values: d.uls.V_max, className: "fd-uls", fill: true },
               { label: "Brottgräns, min", values: d.uls.V_min, className: "fd-uls", fill: true },
             ]}
           />
@@ -540,9 +571,15 @@ function ComboRow({
               ))}
             </ul>
             <p className="muted small">
-              Största moment vid x = {fmt(c.x_M_max)} m, största tvärkraft vid x = {fmt(c.x_V)} m. Stödreaktioner R
-              <sub>A</sub> = {fmt(c.R_A, 1)} kN, R<sub>B</sub> = {fmt(c.R_B, 1)} kN. Gynnsamma variabla laster tas inte
-              med, gynnsam permanent last med faktor 1,0.
+              Största fältmoment vid x = {fmt(c.x_M_max)} m
+              {Object.keys(c.loaded_spans).length > 0 &&
+                ` (${Object.entries(c.loaded_spans)
+                  .map(([id, sp]) => `${id} på fack ${sp.join(", ") || "inget"}`)
+                  .join("; ")})`}
+              {c.M_min < -1e-6 && `, största negativa moment ${fmt(c.M_min, 1)} kNm vid x = ${fmt(c.x_M_min)} m`}, största
+              tvärkraft vid x = {fmt(c.x_V)} m. Största upplagsreaktioner:{" "}
+              {c.reactions.map((r) => `R${r.support} = ${fmt(r.max, 1)} kN`).join(", ")}. Gynnsamma variabla laster tas
+              inte med, gynnsam permanent last med faktor 1,0.
             </p>
           </td>
         </tr>
