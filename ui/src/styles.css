@@ -179,3 +179,35 @@ details.later summary { cursor: pointer; font-weight: 500; }
   .log-panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); }
   .step-grid { grid-template-columns: 1fr; }
 }
+
+/* --- Materialsteget ------------------------------------------------------- */
+.prop.highlight { background: var(--accent-soft); }
+.prop.highlight .prop-value { color: var(--accent); }
+.ok-note { color: var(--ok); background: var(--ok-soft); padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chip { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
+.chip-group { margin-top: 4px; }
+.chip-group-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.chip-group .chips { margin-bottom: 4px; }
+.exposure-text { margin: 4px 0 0; padding-left: 16px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: -4px -4px 14px; flex-wrap: wrap; }
+.tab { font: inherit; font-size: 13px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); cursor: pointer; margin-bottom: -1px; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.explain { margin-top: 12px; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+.explain-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.explain p { margin: 0; font-size: 13px; line-height: 1.5; }
+.explain-ref { display: block; margin-top: 6px; font-size: 11px; color: var(--accent); }
+.chart-figure { margin: 0; }
+.chart .curve-2 { fill: none; stroke: var(--steel); stroke-width: 2; }
+.chart .curve-3 { fill: none; stroke: var(--ok); stroke-width: 2; }
+.chart .dashed { stroke-dasharray: 5 4; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-swatch { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--accent); }
+.legend-swatch.curve-2 { border-top-color: var(--steel); }
+.legend-swatch.curve-3 { border-top-color: var(--ok); }
+.legend-swatch.dashed { border-top-style: dashed; }
+.step-grid > .card.visual { position: sticky; top: 0; }

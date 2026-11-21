@@ -30,6 +30,50 @@ export interface ReinforcementResult {
   log: CalcLog;
 }
 
+export interface MaterialOptions {
+  cements: Record<string, string>;
+  drying: Record<string, string>;
+  exposure: Record<string, { group: string; text: string }>;
+  lives: Record<string, string>;
+  binders: Record<string, string>;
+}
+
+export interface LongTermResult {
+  h0: number;
+  strength_at_t0: { t: number; fcm: number; fck: number; fctm: number; Ecm: number; beta_cc: number };
+  strength_curve: { t: number; fcm: number; fck: number; fctm: number; Ecm: number }[];
+  creep: {
+    phi_inf: number;
+    phi_RH: number;
+    beta_fcm: number;
+    beta_t0: number;
+    beta_H: number;
+    Ec_eff: number;
+    curve: [number, number][];
+  };
+  shrinkage: {
+    eps_cs_inf: number;
+    eps_cd_inf: number;
+    eps_ca_inf: number;
+    kh: number;
+    beta_RH: number;
+    curve: { t: number; eps_cd: number; eps_ca: number; eps_cs: number }[];
+  };
+  logs: CalcLog[];
+}
+
+export interface CoverResult {
+  vct_max: number | null;
+  vct_ok: boolean;
+  cmin_dur: number;
+  cmin_b: number;
+  cmin: number;
+  delta_c_dev: number;
+  cnom: number;
+  warnings: string[];
+  log: CalcLog;
+}
+
 export interface SimplySupportedResult {
   M_max: number;
   V_max: number;
@@ -77,6 +121,19 @@ export const api = {
   info: () => call<Info>("info"),
   concreteClasses: () => call<string[]>("concrete_classes"),
   concrete: (name: string) => call<ConcreteResult>("concrete", name),
+  materialOptions: () => call<MaterialOptions>("material_options"),
+  concreteLongTerm: (
+    name: string,
+    cement: string,
+    rh: number,
+    bMm: number,
+    hMm: number,
+    drying: string,
+    t0: number,
+    ts: number,
+  ) => call<LongTermResult>("concrete_long_term", name, cement, rh, bMm, hMm, drying, t0, ts),
+  concreteCover: (exposure: string[], life: string, binder: string, vct: number | null, barMm: number) =>
+    call<CoverResult>("concrete_cover", exposure, life, binder, vct, barMm),
   reinforcementGrades: () => call<string[]>("reinforcement_grades"),
   reinforcement: (name: string) => call<ReinforcementResult>("reinforcement", name),
   simplySupported: (spanM: number, qKNm: number) =>

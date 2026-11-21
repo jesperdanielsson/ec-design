@@ -92,7 +92,7 @@ cd ui && npm run typecheck            # TypeScript-kontroll
 ## Plan (stegvis)
 
 1. ✅ Grund: struktur, enheter, beräkningslogg, testfall, GUI-skelett med menyn.
-2. Material och nationella val: hela tabell 3.1, vct per exponeringsklass, kryptal och
+2. ✅ Material och nationella val: hela tabell 3.1, vct per exponeringsklass, kryptal och
    krympning (bilaga B), armering.
 3. Laster och lastkombinationer (6.10a/b med γ_d, bruks: karakteristisk/frekvent/kvasipermanent).
 4. Snittkrafter: konsol, kontinuerliga balkar, punktlaster; M-, V- och nedböjningskurvor.

@@ -3,13 +3,15 @@ import { BeamDiagram } from "../components/BeamDiagram";
 import { SectionView } from "../components/SectionView";
 import { Beam3D } from "../components/Beam3D";
 import type { BeamInput } from "../model";
+import type { CoverResult } from "../api";
 
 interface Props {
   beam: BeamInput;
   update: (patch: Partial<BeamInput>) => void;
+  cover?: CoverResult;
 }
 
-export function GeometryStep({ beam, update }: Props) {
+export function GeometryStep({ beam, update, cover }: Props) {
   const coverTooBig = beam.cover_mm >= beam.h_mm / 2;
   return (
     <div className="step-grid">
@@ -38,9 +40,22 @@ export function GeometryStep({ beam, update }: Props) {
           symbol="c_{nom}"
           unit="mm"
           value={beam.cover_mm}
-          help="c_nom = c_min + Δc_dev. EN 1992-1-1 4.4.1. Beräknas från exponeringsklass i en senare version."
+          help="Täckskikt till yttersta armeringen (normalt bygeln). c_nom = c_min + Δc_dev, EN 1992-1-1 4.4.1. Krävt värde räknas fram i steget Material."
           onChange={(v) => update({ cover_mm: v })}
         />
+        {cover && beam.cover_mm < cover.cnom && (
+          <p className="warning">
+            Krävt täckskikt för {beam.exposure.join(" + ")} ({beam.life}) är c<sub>nom</sub> = {cover.cnom} mm.{" "}
+            <button className="btn ghost small" onClick={() => update({ cover_mm: cover.cnom })}>
+              Använd {cover.cnom} mm
+            </button>
+          </p>
+        )}
+        {cover && beam.cover_mm >= cover.cnom && (
+          <p className="ok-note">
+            Uppfyller kravet c<sub>nom</sub> = {cover.cnom} mm för {beam.exposure.join(" + ")} ({beam.life}).
+          </p>
+        )}
         {coverTooBig && <p className="warning">Täckskiktet är större än halva höjden.</p>}
       </section>
 
