@@ -1,0 +1,85 @@
+# Svenska nationella val. Varje värde har en källa i kommentaren.
+# OBS: kontrollera mot gällande föreskrifter innan programmet används skarpt.
+# Boverket ersätter EKS stegvis med nya föreskrifter; uppdatera denna fil då.
+
+[meta]
+name = "Sverige (EKS)"
+source = "Boverkets EKS 11, BFS 2011:10 i lydelse BFS 2019:1"
+
+[concrete]
+# EN 1992-1-1 2.4.2.4, tabell 2.1N. EKS: rekommenderade värden.
+gamma_c = 1.5
+gamma_s = 1.15
+gamma_c_accidental = 1.2
+gamma_s_accidental = 1.0
+# EN 1992-1-1 3.1.6(1)P. EKS: alpha_cc = alpha_ct = 1,0.
+alpha_cc = 1.0
+alpha_ct = 1.0
+
+[safety_class]
+# EKS avd. A (säkerhetsklasser): partialkoefficient gamma_d.
+1 = 0.83
+2 = 0.91
+3 = 1.0
+
+[combination.uls]
+# EKS avd. B (EN 1990 bilaga A1): ekv. 6.10a och 6.10b, ogynnsam permanent last.
+gamma_G_610a = 1.35
+xi = 0.89          # 1,2 / 1,35, ekv. 6.10b
+gamma_G_fav = 1.0
+gamma_Q = 1.5
+
+# EKS avd. B (EN 1990 bilaga A1): psi-faktorer.
+[psi.A]
+name = "Kategori A, bostäder"
+psi0 = 0.7
+psi1 = 0.5
+psi2 = 0.3
+
+[psi.B]
+name = "Kategori B, kontor"
+psi0 = 0.7
+psi1 = 0.5
+psi2 = 0.3
+
+[psi.C]
+name = "Kategori C, samlingslokaler"
+psi0 = 0.7
+psi1 = 0.7
+psi2 = 0.6
+
+[psi.D]
+name = "Kategori D, handel"
+psi0 = 0.7
+psi1 = 0.7
+psi2 = 0.6
+
+[psi.E]
+name = "Kategori E, lager"
+psi0 = 1.0
+psi1 = 0.9
+psi2 = 0.8
+
+[psi.snow_high]
+name = "Snö, s_k >= 3 kN/m²"
+psi0 = 0.8
+psi1 = 0.6
+psi2 = 0.2
+
+[psi.snow_mid]
+name = "Snö, 2 <= s_k < 3 kN/m²"
+psi0 = 0.7
+psi1 = 0.4
+psi2 = 0.2
+
+[psi.snow_low]
+name = "Snö, 1 <= s_k < 2 kN/m²"
+psi0 = 0.6
+psi1 = 0.3
+psi2 = 0.1
+
+[psi.wind]
+name = "Vind"
+psi0 = 0.3
+psi1 = 0.2
+psi2 = 0.0

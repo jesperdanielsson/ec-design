@@ -1,0 +1,44 @@
+# Rekommenderade värden i Eurokoderna (utan nationella val), för jämförelse.
+
+[meta]
+name = "Rekommenderade värden (CEN)"
+source = "EN 1990:2002, EN 1992-1-1:2004"
+
+[concrete]
+gamma_c = 1.5
+gamma_s = 1.15
+gamma_c_accidental = 1.2
+gamma_s_accidental = 1.0
+alpha_cc = 1.0
+alpha_ct = 1.0
+
+[safety_class]
+# Säkerhetsklass finns inte i CEN-versionen; gamma_d = 1,0.
+1 = 1.0
+2 = 1.0
+3 = 1.0
+
+[combination.uls]
+# EN 1990 tabell A1.2(B)
+gamma_G_610a = 1.35
+xi = 0.85
+gamma_G_fav = 1.0
+gamma_Q = 1.5
+
+[psi.A]
+name = "Kategori A, bostäder"
+psi0 = 0.7
+psi1 = 0.5
+psi2 = 0.3
+
+[psi.B]
+name = "Kategori B, kontor"
+psi0 = 0.7
+psi1 = 0.5
+psi2 = 0.3
+
+[psi.wind]
+name = "Vind"
+psi0 = 0.6
+psi1 = 0.2
+psi2 = 0.0

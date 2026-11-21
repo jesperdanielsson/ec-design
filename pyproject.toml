@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecdesign"
+version = "0.1.0"
+description = "Dimensionering enligt Eurokoderna med svenska val (EKS), med beräkningslogg som går att jämföra mot handberäkning."
+requires-python = ">=3.12"
+dependencies = [
+  "pint>=0.24",
+]
+
+[project.optional-dependencies]
+app = ["pywebview>=5.0"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+ecdesign = "ecdesign.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"ecdesign.core.national" = ["data/*.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
