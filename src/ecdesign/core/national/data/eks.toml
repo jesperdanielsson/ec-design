@@ -28,6 +28,10 @@ gamma_G_610a = 1.35
 xi = 0.89          # 1,2 / 1,35, ekv. 6.10b
 gamma_G_fav = 1.0
 gamma_Q = 1.5
+# EKS avd. B: kombinationsregler i brottgräns (STR/GEO). EKS tillåter 6.10a/b.
+# OGRANSKAT: tillagt i laststeget. EKS avd. A: gamma_d multipliceras på ogynnsamma laster i
+# brottgräns; gynnsam permanent last tas med 1,0 utan gamma_d.
+methods = ["6.10ab"]
 
 # EKS avd. B (EN 1990 bilaga A1): psi-faktorer.
 [psi.A]
@@ -60,20 +64,25 @@ psi0 = 1.0
 psi1 = 0.9
 psi2 = 0.8
 
+# Snö: sk_min = lägsta s_k (kN/m²) för raden. Gränserna står i radernas namn i EKS
+# tabell B-1 (samma tabell som psi-värdena ovan).
 [psi.snow_high]
 name = "Snö, s_k >= 3 kN/m²"
+sk_min = 3.0
 psi0 = 0.8
 psi1 = 0.6
 psi2 = 0.2
 
 [psi.snow_mid]
 name = "Snö, 2 <= s_k < 3 kN/m²"
+sk_min = 2.0
 psi0 = 0.7
 psi1 = 0.4
 psi2 = 0.2
 
 [psi.snow_low]
 name = "Snö, 1 <= s_k < 2 kN/m²"
+sk_min = 1.0
 psi0 = 0.6
 psi1 = 0.3
 psi2 = 0.1
@@ -83,6 +92,112 @@ name = "Vind"
 psi0 = 0.3
 psi1 = 0.2
 psi2 = 0.0
+
+# --- Tillägg i laststeget 2026-11-21 ------------------------------------------------
+# OGRANSKAT: ψ för kategori F, G, H och temperatur, tillagda i laststeget.
+# OSÄKER: antas lika med EN 1990 tabell A1.1 (rekommenderat); kontrollera EKS tabell B-1.
+[psi.F]
+name = "Kategori F, fordon <= 30 kN"
+psi0 = 0.7
+psi1 = 0.7
+psi2 = 0.6
+
+[psi.G]
+name = "Kategori G, fordon 30–160 kN"
+psi0 = 0.7
+psi1 = 0.5
+psi2 = 0.3
+
+[psi.H]
+name = "Kategori H, yttertak"
+psi0 = 0.0
+psi1 = 0.0
+psi2 = 0.0
+
+[psi.temperature]
+name = "Temperatur (ej brand)"
+psi0 = 0.6
+psi1 = 0.5
+psi2 = 0.0
+
+# Nyttig last, utbredd q_k (kN/m²) och koncentrerad Q_k (kN), EN 1991-1-1 6.3.1.2 tabell 6.2.
+# Används bara som förslag i gränssnittet; konstruktören anger alltid lasten själv.
+# OGRANSKAT och OSÄKER: värdena är inte kontrollerade mot EKS avd. B (EN 1991-1-1
+# kap. 6.3.1.2). Jämför med EKS innan de används.
+[imposed]
+note = "OSÄKER: förslagen är inte kontrollerade mot EKS avd. B. Kontrollera innan användning."
+
+[imposed.A_floor]
+name = "A – bostäder, bjälklag"
+psi = "A"
+qk = 2.0
+Qk = 2.0
+
+[imposed.A_stairs]
+name = "A – bostäder, trappor"
+psi = "A"
+qk = 2.0
+Qk = 2.0
+
+[imposed.A_balcony]
+name = "A – bostäder, balkonger"
+psi = "A"
+qk = 3.5
+Qk = 2.0
+
+[imposed.B]
+name = "B – kontor"
+psi = "B"
+qk = 2.5
+Qk = 3.0
+
+[imposed.C1]
+name = "C1 – lokaler med bord (skolor, kaféer)"
+psi = "C"
+qk = 2.5
+Qk = 3.0
+
+[imposed.C2]
+name = "C2 – fasta sittplatser (kyrkor, teatrar)"
+psi = "C"
+qk = 3.0
+Qk = 4.0
+
+[imposed.C3]
+name = "C3 – utan hinder för rörelse (museer, entréer)"
+psi = "C"
+qk = 3.0
+Qk = 4.0
+
+[imposed.C4]
+name = "C4 – fysisk aktivitet (gymnastiksalar, scener)"
+psi = "C"
+qk = 4.0
+Qk = 7.0
+
+[imposed.C5]
+name = "C5 – stora folksamlingar (konserthallar, läktare)"
+psi = "C"
+qk = 5.0
+Qk = 4.5
+
+[imposed.D1]
+name = "D1 – detaljhandel"
+psi = "D"
+qk = 4.0
+Qk = 4.0
+
+[imposed.D2]
+name = "D2 – varuhus"
+psi = "D"
+qk = 5.0
+Qk = 7.0
+
+[imposed.E1]
+name = "E1 – lager (minimivärde)"
+psi = "E"
+qk = 7.5
+Qk = 7.0
 
 # --- Täckande betongskikt och vct (EN 1992-1-1 4.4.1) ---------------------------
 # OGRANSKAT: tillagt 2026-11-21 i materialsteget, ska granskas av Jesper.

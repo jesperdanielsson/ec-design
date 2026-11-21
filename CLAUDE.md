@@ -20,8 +20,8 @@ src/ecdesign/
     calclog.py        CalcLog/CalcStep: formel, insatta värden, resultat, normref
     national/         nationella val som TOML-data (eks.toml, recommended.toml)
     materials/        betong (tabell 3.1, σ-ε), armering
-    loads/            lastfall, laster (kombinationer: steg 3)
-    analysis/         snittkrafter (fritt upplagd balk än så länge)
+    loads/            lastfall, laster på balken, lastkombinationer (EN 1990 + EKS)
+    analysis/         snittkrafter (fritt upplagd balk) och dimensionerande kombination
     members/beam/     betongbalkens kontroller (steg 5–6)
   api/                tunt lager kärna -> GUI, returnerar JSON-vänliga dict:ar
   app.py              skrivbordsappen (pywebview)
@@ -94,7 +94,7 @@ cd ui && npm run typecheck            # TypeScript-kontroll
 1. ✅ Grund: struktur, enheter, beräkningslogg, testfall, GUI-skelett med menyn.
 2. ✅ Material och nationella val: hela tabell 3.1, vct per exponeringsklass, kryptal och
    krympning (bilaga B), armering.
-3. Laster och lastkombinationer (6.10a/b med γ_d, bruks: karakteristisk/frekvent/kvasipermanent).
+3. ✅ Laster och lastkombinationer (6.10a/b med γ_d, bruks: karakteristisk/frekvent/kvasipermanent).
 4. Snittkrafter: konsol, kontinuerliga balkar, punktlaster; M-, V- och nedböjningskurvor.
 5. Brottgräns: böjning (enkel/dubbel, T-tvärsnitt), tvärkraft 6.2.2/6.2.3, minimiarmering.
 6. Bruksgräns: spänningsbegränsning, sprickor 7.3.2/7.3.4, nedböjning.

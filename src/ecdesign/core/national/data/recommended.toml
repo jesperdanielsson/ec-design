@@ -24,6 +24,8 @@ gamma_G_610a = 1.35
 xi = 0.85
 gamma_G_fav = 1.0
 gamma_Q = 1.5
+# EN 1990 A1.3.1(4): ekv. 6.10 eller 6.10a/b, nationellt val. Båda tillåts här.
+methods = ["6.10", "6.10ab"]
 
 [psi.A]
 name = "Kategori A, bostäder"
@@ -37,11 +39,115 @@ psi0 = 0.7
 psi1 = 0.5
 psi2 = 0.3
 
+[psi.C]
+name = "Kategori C, samlingslokaler"
+psi0 = 0.7
+psi1 = 0.7
+psi2 = 0.6
+
+[psi.D]
+name = "Kategori D, handel"
+psi0 = 0.7
+psi1 = 0.7
+psi2 = 0.6
+
+[psi.E]
+name = "Kategori E, lager"
+psi0 = 1.0
+psi1 = 0.9
+psi2 = 0.8
+
+[psi.F]
+name = "Kategori F, fordon <= 30 kN"
+psi0 = 0.7
+psi1 = 0.7
+psi2 = 0.6
+
+[psi.G]
+name = "Kategori G, fordon 30–160 kN"
+psi0 = 0.7
+psi1 = 0.5
+psi2 = 0.3
+
+[psi.H]
+name = "Kategori H, yttertak"
+psi0 = 0.0
+psi1 = 0.0
+psi2 = 0.0
+
+# EN 1990 tabell A1.1: snö för platser under 1000 m ö.h. (ej Finland, Island, Norge, Sverige).
+# sk_min = 0 så att samma rad gäller oavsett s_k.
+[psi.snow_low]
+name = "Snö, under 1000 m ö.h."
+sk_min = 0.0
+psi0 = 0.5
+psi1 = 0.2
+psi2 = 0.0
+
+[psi.temperature]
+name = "Temperatur (ej brand)"
+psi0 = 0.6
+psi1 = 0.5
+psi2 = 0.0
+
 [psi.wind]
 name = "Vind"
 psi0 = 0.6
 psi1 = 0.2
 psi2 = 0.0
+
+# Nyttig last, EN 1991-1-1 tabell 6.2 (övre rekommenderade värden). Källa: "Diverse utdrag
+# 2018", Chalmers BMT016, s. 23 "Appendix B: Imposed loads".
+[imposed]
+note = "Rekommenderade värden ur EN 1991-1-1 tabell 6.2 (kursutdrag Chalmers 2018)."
+
+[imposed.A_floor]
+name = "A – bostäder, bjälklag"
+psi = "A"
+qk = 2.0
+Qk = 2.0
+
+[imposed.A_stairs]
+name = "A – bostäder, trappor"
+psi = "A"
+qk = 3.0
+Qk = 2.0
+
+[imposed.A_balcony]
+name = "A – bostäder, balkonger"
+psi = "A"
+qk = 4.0
+Qk = 2.0
+
+[imposed.B]
+name = "B – kontor"
+psi = "B"
+qk = 3.0
+Qk = 2.0
+
+[imposed.C1]
+name = "C1 – lokaler med bord"
+psi = "C"
+qk = 3.0
+Qk = 4.0
+
+[imposed.C3]
+name = "C3 – utan hinder för rörelse"
+psi = "C"
+qk = 5.0
+Qk = 4.0
+
+[imposed.D1]
+name = "D1 – detaljhandel"
+psi = "D"
+qk = 5.0
+Qk = 4.0
+
+[imposed.E1]
+name = "E – lager (minimivärde)"
+psi = "E"
+qk = 6.0
+Qk = 7.0
 
 [cover]
 # EN 1992-1-1 4.4.1.3(1)P och 4.4.1.2(6)–(8): rekommenderade värden.
