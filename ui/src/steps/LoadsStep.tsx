@@ -419,15 +419,16 @@ function DesignSummary({ result, gammaD, safetyClass, beam }: { result: LoadsRes
         <>
           <ForceDiagram
             title="M"
+            quantity="M"
             x={d.x}
             span_m={span}
             supports_x={supX}
             unit="kNm"
             downPositive
             series={[
-              { label: "Brottgräns, max", values: d.uls.M_max, className: "fd-uls", fill: true },
-              ...(d.uls.M_min.some((v) => v < -1e-6) ? [{ label: "Brottgräns, min", values: d.uls.M_min, className: "fd-uls", fill: true }] : []),
-              { label: "Kvasipermanent", values: d.quasi_permanent.M_max, className: "fd-qp", dashed: true },
+              { label: "Brottgräns (omhyllning)", values: d.uls.M_max, fill: "pos" as const },
+              { label: "Brottgräns, min", values: d.uls.M_min, fill: "neg" as const, legend: false },
+              { label: "Kvasipermanent", values: d.quasi_permanent.M_max, className: "fd-faint", dashed: true },
             ]}
             annotate={[
               ...(hasPos && uls ? [{ x: uls.x_M_pos, value: uls.M_pos, label: "M_Ed" }] : []),
@@ -436,13 +437,14 @@ function DesignSummary({ result, gammaD, safetyClass, beam }: { result: LoadsRes
           />
           <ForceDiagram
             title="V"
+            quantity="V"
             x={d.x}
             span_m={span}
             supports_x={supX}
             unit="kN"
             series={[
-              { label: "Brottgräns, max", values: d.uls.V_max, className: "fd-uls", fill: true },
-              { label: "Brottgräns, min", values: d.uls.V_min, className: "fd-uls", fill: true },
+              { label: "Brottgräns (omhyllning)", values: d.uls.V_max, fill: "pos" as const },
+              { label: "Brottgräns, min", values: d.uls.V_min, fill: "neg" as const, legend: false },
             ]}
           />
         </>

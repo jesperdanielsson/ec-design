@@ -4,9 +4,14 @@
 export interface ForceSeries {
   label: string;
   values: number[];
-  className: string; // "fd-uls", "fd-qp", "fd-k"
-  fill?: boolean;
+  /** Extra klass, t.ex. "fd-faint" för en jämförelsekurva. */
+  className?: string;
+  /** Fyll ytan mot nollinjen: "pos" bara där värdet är positivt, "neg" bara där det är negativt.
+   * Max- och min-kurvan i en omhyllning fylls var på sin sida, så att ytorna inte överlappar. */
+  fill?: boolean | "pos" | "neg";
   dashed?: boolean;
+  /** false: visas inte i förklaringen (t.ex. min-kurvan i en omhyllning). */
+  legend?: boolean;
 }
 
 interface Props {
@@ -19,12 +24,17 @@ interface Props {
   /** true: positivt värde ritas nedåt (moment). */
   downPositive?: boolean;
   title: string;
+  /** Storhet: bestämmer färgen. Moment rött, tvärkraft blått, nedböjning grönt. */
+  quantity: "M" | "V" | "w";
   annotate?: { x: number; value: number; label: string }[];
 }
 
+const clamp = (vals: number[], side: boolean | "pos" | "neg") =>
+  side === "pos" ? vals.map((v) => Math.max(v, 0)) : side === "neg" ? vals.map((v) => Math.min(v, 0)) : vals;
+
 const fmt = (v: number, d = 1) => v.toLocaleString("sv-SE", { maximumFractionDigits: d });
 
-export function ForceDiagram({ x, series, span_m, supports_x = [], unit, downPositive = false, title, annotate = [] }: Props) {
+export function ForceDiagram({ x, series, span_m, supports_x = [], unit, downPositive = false, title, quantity, annotate = [] }: Props) {
   const W = 480;
   const H = 150;
   const x0 = 34;
@@ -43,7 +53,7 @@ export function ForceDiagram({ x, series, span_m, supports_x = [], unit, downPos
 
   return (
     <figure className="chart-figure">
-      <svg viewBox={`0 0 ${W} ${H}`} className="diagram force-diagram" role="img" aria-label={title}>
+      <svg viewBox={`0 0 ${W} ${H}`} className={`diagram force-diagram fd-${quantity}`} role="img" aria-label={title}>
         <text x={8} y={yZero + 4} className="fd-title">
           {title}
         </text>
@@ -53,7 +63,7 @@ export function ForceDiagram({ x, series, span_m, supports_x = [], unit, downPos
         <line x1={x0} x2={x1} y1={yZero} y2={yZero} className="fd-axis" />
         {series.map((s) => (
           <g key={s.label} className={s.className}>
-            {s.fill && <path d={`${path(s.values)} L${sx(x[x.length - 1])},${yZero} L${sx(x[0])},${yZero} Z`} className="fd-fill" />}
+            {s.fill && <path d={`${path(clamp(s.values, s.fill))} L${sx(x[x.length - 1])},${yZero} L${sx(x[0])},${yZero} Z`} className="fd-fill" />}
             <path d={path(s.values)} className={`fd-line${s.dashed ? " dashed" : ""}`} />
           </g>
         ))}
@@ -70,11 +80,11 @@ export function ForceDiagram({ x, series, span_m, supports_x = [], unit, downPos
           </g>
         ))}
       </svg>
-      {series.length > 1 && (
-        <figcaption className="legend">
-          {series.map((s) => (
+      {series.filter((s) => s.legend !== false).length > 1 && (
+        <figcaption className={`legend fd-${quantity}`}>
+          {series.filter((s) => s.legend !== false).map((s) => (
             <span key={s.label} className="legend-item">
-              <span className={`legend-swatch ${s.className}${s.dashed ? " dashed" : ""}`} />
+              <span className={`legend-swatch fd-swatch ${s.className ?? ""}${s.dashed ? " dashed" : ""}`} />
               {s.label}
             </span>
           ))}
