@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type CalcLog, type ConcreteResult, type Info, type ReinforcementResult, type SimplySupportedResult } from "./api";
+import {
+  api,
+  type CalcLog,
+  type ConcreteResult,
+  type CoverResult,
+  type Info,
+  type LongTermResult,
+  type MaterialOptions,
+  type ReinforcementResult,
+  type SimplySupportedResult,
+} from "./api";
 import { Sidebar } from "./components/Sidebar";
 import { CalcLogView } from "./components/CalcLogView";
 import { GeometryStep } from "./steps/GeometryStep";
@@ -16,6 +26,9 @@ export default function App() {
   const [grades, setGrades] = useState<string[]>([]);
   const [concrete, setConcrete] = useState<ConcreteResult>();
   const [reinforcement, setReinforcement] = useState<ReinforcementResult>();
+  const [options, setOptions] = useState<MaterialOptions>();
+  const [longTerm, setLongTerm] = useState<LongTermResult>();
+  const [cover, setCover] = useState<CoverResult>();
   const [ss, setSs] = useState<SimplySupportedResult>();
   const [error, setError] = useState<string>();
 
@@ -26,7 +39,23 @@ export default function App() {
     api.info().then(setInfo).catch(fail);
     api.concreteClasses().then(setClasses).catch(fail);
     api.reinforcementGrades().then(setGrades).catch(fail);
+    api.materialOptions().then(setOptions).catch(fail);
   }, []);
+
+  // Krypning och krympning beror på klass, miljö, ålder och tvärsnittets mått (h0).
+  const ltValid = beam.rh_percent >= 40 && beam.rh_percent <= 100 && beam.t0_days > 0 && beam.ts_days > 0 && beam.b_mm > 0 && beam.h_mm > 0;
+  useEffect(() => {
+    if (!ltValid) return;
+    api
+      .concreteLongTerm(beam.concrete, beam.cement, beam.rh_percent, beam.b_mm, beam.h_mm, beam.drying, beam.t0_days, beam.ts_days)
+      .then(setLongTerm)
+      .catch(fail);
+  }, [ltValid, beam.concrete, beam.cement, beam.rh_percent, beam.b_mm, beam.h_mm, beam.drying, beam.t0_days, beam.ts_days]);
+
+  useEffect(() => {
+    if (!beam.exposure.length || !(beam.stirrup_mm > 0)) return;
+    api.concreteCover(beam.exposure, beam.life, beam.binder, beam.vct, beam.stirrup_mm).then(setCover).catch(fail);
+  }, [beam.exposure, beam.life, beam.binder, beam.vct, beam.stirrup_mm]);
 
   useEffect(() => {
     api.concrete(beam.concrete).then(setConcrete).catch(fail);
@@ -42,10 +71,12 @@ export default function App() {
   }, [beam.span_m, qSum]);
 
   const logs: CalcLog[] = useMemo(() => {
-    if (active === "material") return [concrete?.log, reinforcement?.log].filter(Boolean) as CalcLog[];
+    if (active === "material")
+      return [concrete?.log, reinforcement?.log, ...(longTerm?.logs ?? []), cover?.log].filter(Boolean) as CalcLog[];
+    if (active === "geometry") return cover ? [cover.log] : [];
     if (active === "analysis") return ss ? [ss.log] : [];
     return [];
-  }, [active, concrete, reinforcement, ss]);
+  }, [active, concrete, reinforcement, longTerm, cover, ss]);
 
   const idx = STEPS.findIndex((s) => s.id === active);
   const step = STEPS[idx];
@@ -85,7 +116,7 @@ export default function App() {
           </div>
         )}
 
-        {active === "geometry" && <GeometryStep beam={beam} update={update} />}
+        {active === "geometry" && <GeometryStep beam={beam} update={update} cover={cover} />}
         {active === "material" && (
           <MaterialStep
             beam={beam}
@@ -94,6 +125,9 @@ export default function App() {
             grades={grades}
             concrete={concrete}
             reinforcement={reinforcement}
+            options={options}
+            longTerm={longTerm}
+            cover={cover}
           />
         )}
         {active === "loads" && <LoadsStep beam={beam} update={update} />}
