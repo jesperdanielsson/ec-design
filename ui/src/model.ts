@@ -1,12 +1,31 @@
 // Modellen som användaren bygger upp genom menyns fyra steg.
 // Enheter står i namnen så att inget behöver gissas: mm, m, kN/m.
 
+export type LoadType = "udl" | "partial" | "point";
+export type LoadUnit = "kN/m" | "kN/m2" | "kN";
+
+/** En last på balken. Läget a/b mäts från vänster stöd i meter. */
+export interface LoadInput {
+  id: string;
+  type: LoadType;
+  value: number;
+  unit: LoadUnit;
+  a_m?: number;
+  b_m?: number;
+}
+
+/** Ett lastfall (EN 1990 kap. 4). Variabla lastfall har en ψ-kategori. */
 export interface LoadCaseInput {
   id: string;
   name: string;
   kind: "permanent" | "variable";
+  /** ψ-kategori i det nationella datasetet, t.ex. "B", "wind". "snow" = välj efter s_k. */
   category?: string;
-  q_kNm: number;
+  /** Lägg till balkens egentyngd ρ·b·h (EN 1991-1-1 tabell A.1). */
+  self_weight?: boolean;
+  /** Snö på tak, EN 1991-1-3 ekv. (5.1). */
+  snow?: { sk: number; mu: number };
+  loads: LoadInput[];
 }
 
 export interface BeamInput {
@@ -28,6 +47,10 @@ export interface BeamInput {
   binder: string;
   vct: number | null;
   stirrup_mm: number;
+  /** Säkerhetsklass enligt EKS avd. A (ger γ_d). */
+  safety_class: 1 | 2 | 3;
+  /** Belastningsbredd (c/c) för ytlaster, m. */
+  width_m: number;
   loadCases: LoadCaseInput[];
   analysis: {
     creep: boolean;
@@ -53,9 +76,23 @@ export const defaultBeam: BeamInput = {
   binder: "pc80",
   vct: null,
   stirrup_mm: 10,
+  safety_class: 2,
+  width_m: 4,
   loadCases: [
-    { id: "G", name: "Egentyngd och bjälklag", kind: "permanent", q_kNm: 12 },
-    { id: "Q", name: "Nyttig last, kontor", kind: "variable", category: "B", q_kNm: 8 },
+    {
+      id: "c1",
+      name: "Egentyngd, bjälklag och golv",
+      kind: "permanent",
+      self_weight: true,
+      loads: [{ id: "l1", type: "udl", value: 2.0, unit: "kN/m2" }],
+    },
+    {
+      id: "c2",
+      name: "Nyttig last, kontor",
+      kind: "variable",
+      category: "B",
+      loads: [{ id: "l2", type: "udl", value: 2.5, unit: "kN/m2" }],
+    },
   ],
   analysis: { creep: false, cracking: false, deflection: true },
 };
@@ -87,7 +124,7 @@ export const STEPS: StepDef[] = [
     id: "loads",
     title: "Laster",
     subtitle: "Lastfall och kombinationer",
-    items: ["Lastfall", "Laster", "Lastkombinationer"],
+    items: ["Säkerhetsklass", "Lastfall och laster", "Lastkombinationer", "Dimensionerande snittkrafter"],
   },
   {
     id: "analysis",
@@ -104,8 +141,16 @@ export function stepComplete(id: StepId, b: BeamInput): boolean {
     case "material":
       return Boolean(b.concrete && b.reinforcement && b.exposure.length > 0 && b.rh_percent >= 40 && b.t0_days > 0);
     case "loads":
-      return b.loadCases.length > 0;
+      return (
+        b.width_m > 0 &&
+        b.loadCases.length > 0 &&
+        b.loadCases.every((lc) => (lc.loads.length > 0 || lc.self_weight || lc.snow) && lc.loads.every((l) => Number.isFinite(l.value)))
+      );
     case "analysis":
       return false; // blir klar när kontrollerna finns (steg 5–6 i planen)
   }
 }
+
+let _seq = 100;
+/** Unikt id för nya lastfall och laster (bara för gränssnittet). */
+export const newId = (prefix: string) => `${prefix}${++_seq}`;

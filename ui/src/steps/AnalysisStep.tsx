@@ -1,10 +1,10 @@
-import type { SimplySupportedResult } from "../api";
+import type { LoadsResult } from "../api";
 import type { BeamInput } from "../model";
 
 interface Props {
   beam: BeamInput;
   update: (patch: Partial<BeamInput>) => void;
-  result?: SimplySupportedResult;
+  result?: LoadsResult;
 }
 
 function Toggle({ label, help, checked, disabled, onChange }: {
@@ -46,25 +46,29 @@ export function AnalysisStep({ beam, update, result }: Props) {
       </section>
 
       <section className="card visual">
-        <h2>Snittkrafter</h2>
-        <p className="notice">
-          Tillfälligt: summan av lastfallen utan lastfaktorer. Dimensionerande lastkombination enligt EKS kommer i
-          nästa steg.
-        </p>
-        <div className="results">
-          <div className="result">
-            <div className="result-label">Största moment</div>
-            <div className="result-value">
-              {fmt(result?.M_max)} <span className="unit">kNm</span>
-            </div>
-          </div>
-          <div className="result">
-            <div className="result-label">Största tvärkraft</div>
-            <div className="result-value">
-              {fmt(result?.V_max)} <span className="unit">kN</span>
-            </div>
-          </div>
-        </div>
+        <h2>Dimensionerande snittkrafter</h2>
+        <p className="muted small">Från laststeget: den ogynnsammaste kombinationen i varje grupp enligt EKS.</p>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Gränstillstånd</th>
+              <th className="num">M (kNm)</th>
+              <th className="num">V (kN)</th>
+              <th>Kombination</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result &&
+              Object.entries(result.design).map(([g, d]) => (
+                <tr key={g}>
+                  <td>{d.label}</td>
+                  <td className="num">{fmt(d.M)}</td>
+                  <td className="num">{fmt(d.V)}</td>
+                  <td className="muted small">{d.combination_M_name}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
         <h2>Utnyttjandegrader</h2>
         <p className="muted small">Böjning, tvärkraft och bruksgränskontroller visas här med färg när de är byggda.</p>
       </section>

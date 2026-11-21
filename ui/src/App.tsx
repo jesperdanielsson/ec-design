@@ -5,10 +5,11 @@ import {
   type ConcreteResult,
   type CoverResult,
   type Info,
+  type LoadOptions,
+  type LoadsResult,
   type LongTermResult,
   type MaterialOptions,
   type ReinforcementResult,
-  type SimplySupportedResult,
 } from "./api";
 import { Sidebar } from "./components/Sidebar";
 import { CalcLogView } from "./components/CalcLogView";
@@ -29,7 +30,9 @@ export default function App() {
   const [options, setOptions] = useState<MaterialOptions>();
   const [longTerm, setLongTerm] = useState<LongTermResult>();
   const [cover, setCover] = useState<CoverResult>();
-  const [ss, setSs] = useState<SimplySupportedResult>();
+  const [loadOptions, setLoadOptions] = useState<LoadOptions>();
+  const [loads, setLoads] = useState<LoadsResult>();
+  const [loadsError, setLoadsError] = useState<string>();
   const [error, setError] = useState<string>();
 
   const update = (patch: Partial<BeamInput>) => setBeam((b) => ({ ...b, ...patch }));
@@ -40,6 +43,7 @@ export default function App() {
     api.concreteClasses().then(setClasses).catch(fail);
     api.reinforcementGrades().then(setGrades).catch(fail);
     api.materialOptions().then(setOptions).catch(fail);
+    api.loadOptions().then(setLoadOptions).catch(fail);
   }, []);
 
   // Krypning och krympning beror på klass, miljö, ålder och tvärsnittets mått (h0).
@@ -65,18 +69,53 @@ export default function App() {
     api.reinforcement(beam.reinforcement).then(setReinforcement).catch(fail);
   }, [beam.reinforcement]);
 
-  const qSum = beam.loadCases.reduce((s, lc) => s + (Number.isFinite(lc.q_kNm) ? lc.q_kNm : 0), 0);
+  // Lastfall -> kombinationer -> dimensionerande snittkrafter. Ogiltiga fält skickas inte.
+  const casesPayload = useMemo(
+    () =>
+      beam.loadCases.map((lc) => ({
+        name: lc.name,
+        kind: lc.kind,
+        category: lc.category === "snow" ? undefined : lc.category,
+        self_weight: lc.kind === "permanent" && lc.self_weight,
+        snow: lc.category === "snow" ? lc.snow : undefined,
+        loads: lc.loads.map((l) => ({ type: l.type, value: l.value, unit: l.unit, a_m: l.a_m, b_m: l.b_m })),
+      })),
+    [beam.loadCases],
+  );
+  const loadsValid =
+    beam.span_m > 0 &&
+    beam.b_mm > 0 &&
+    beam.h_mm > 0 &&
+    beam.width_m > 0 &&
+    beam.loadCases.length > 0 &&
+    beam.loadCases.every(
+      (lc) =>
+        lc.loads.every((l) => [l.value, l.a_m ?? 0, l.b_m ?? 0].every(Number.isFinite)) &&
+        (!lc.snow || (Number.isFinite(lc.snow.sk) && Number.isFinite(lc.snow.mu))),
+    );
   useEffect(() => {
-    if (beam.span_m > 0) api.simplySupported(beam.span_m, qSum).then(setSs).catch(fail);
-  }, [beam.span_m, qSum]);
+    if (!loadsValid) return;
+    let stale = false;
+    api
+      .loads(beam.span_m, beam.b_mm, beam.h_mm, beam.width_m, beam.safety_class, casesPayload)
+      .then((r) => {
+        if (stale) return;
+        setLoads(r);
+        setLoadsError(undefined);
+      })
+      .catch((e) => !stale && setLoadsError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      stale = true;
+    };
+  }, [loadsValid, beam.span_m, beam.b_mm, beam.h_mm, beam.width_m, beam.safety_class, casesPayload]);
 
   const logs: CalcLog[] = useMemo(() => {
     if (active === "material")
       return [concrete?.log, reinforcement?.log, ...(longTerm?.logs ?? []), cover?.log].filter(Boolean) as CalcLog[];
     if (active === "geometry") return cover ? [cover.log] : [];
-    if (active === "analysis") return ss ? [ss.log] : [];
+    if (active === "loads" || active === "analysis") return loads?.logs ?? [];
     return [];
-  }, [active, concrete, reinforcement, longTerm, cover, ss]);
+  }, [active, concrete, reinforcement, longTerm, cover, loads]);
 
   const idx = STEPS.findIndex((s) => s.id === active);
   const step = STEPS[idx];
@@ -130,8 +169,10 @@ export default function App() {
             cover={cover}
           />
         )}
-        {active === "loads" && <LoadsStep beam={beam} update={update} />}
-        {active === "analysis" && <AnalysisStep beam={beam} update={update} result={ss} />}
+        {active === "loads" && (
+          <LoadsStep beam={beam} update={update} options={loadOptions} result={loads} error={loadsError} />
+        )}
+        {active === "analysis" && <AnalysisStep beam={beam} update={update} result={loads} />}
       </main>
 
       <aside className="log-panel" aria-label="Lösningsgång">

@@ -80,6 +80,84 @@ export interface SimplySupportedResult {
   log: CalcLog;
 }
 
+export interface LoadOptions {
+  safety_classes: Record<string, { label: string; gamma_d: number }>;
+  psi: Record<string, { name: string; psi0: number; psi1: number; psi2: number; sk_min?: number | null }>;
+  imposed: Record<string, { name: string; psi: string; qk: number; Qk: number }>;
+  imposed_note: string;
+  methods: string[];
+  groups: Record<string, string>;
+}
+
+export interface ResolvedLoad {
+  type: "udl" | "partial" | "point";
+  q?: number;
+  P?: number;
+  a: number | null;
+  b?: number | null;
+  text: string;
+}
+
+export interface ResolvedCase {
+  id: string;
+  name: string;
+  kind: "permanent" | "variable";
+  category: string | null;
+  category_name: string | null;
+  psi: [number, number, number] | null;
+  loads: ResolvedLoad[];
+}
+
+export interface CombinationResult {
+  id: string;
+  name: string;
+  type: string;
+  type_label: string;
+  group: "uls" | "characteristic" | "frequent" | "quasi_permanent";
+  leading: string | null;
+  latex: string;
+  latex_numeric: string;
+  factors: Record<string, number>;
+  q_d: number | null;
+  M_max: number;
+  x_M_max: number;
+  M_min: number;
+  V_abs: number;
+  x_V: number;
+  R_A: number;
+  R_B: number;
+  governs_M: boolean;
+  governs_V: boolean;
+}
+
+export interface DesignValues {
+  label: string;
+  M: number;
+  x_M: number;
+  V: number;
+  combination_M: string;
+  combination_M_name: string;
+  combination_V: string;
+  combination_V_name: string;
+}
+
+export interface Envelope {
+  M_max: number[];
+  M_min: number[];
+  V_max: number[];
+  V_min: number[];
+}
+
+export interface LoadsResult {
+  gamma_d: number;
+  cases: ResolvedCase[];
+  combinations: CombinationResult[];
+  design: Record<string, DesignValues>;
+  diagrams: { x: number[]; cases: Record<string, { M: number[]; V: number[] }> } & Record<string, Envelope>;
+  warnings: string[];
+  logs: CalcLog[];
+}
+
 export interface Info {
   version: string;
   annex: string;
@@ -136,6 +214,9 @@ export const api = {
     call<CoverResult>("concrete_cover", exposure, life, binder, vct, barMm),
   reinforcementGrades: () => call<string[]>("reinforcement_grades"),
   reinforcement: (name: string) => call<ReinforcementResult>("reinforcement", name),
+  loadOptions: () => call<LoadOptions>("load_options"),
+  loads: (spanM: number, bMm: number, hMm: number, widthM: number, safetyClass: number, cases: unknown[]) =>
+    call<LoadsResult>("loads", spanM, bMm, hMm, widthM, safetyClass, cases),
   simplySupported: (spanM: number, qKNm: number) =>
     call<SimplySupportedResult>("simply_supported", spanM, qKNm),
 };
