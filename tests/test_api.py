@@ -28,6 +28,7 @@ def test_api_roundtrip_json():
         api.concrete_cover(["XC3"]),
         api.load_options(),
         api.loads(6, 300, 500, 1, 2, CASES),
+        api.loads(0, 300, 500, 1, 2, CASES, None, {"spans_m": [3], "supports": ["fixed", "free"]}),
     ):
         json.dumps(payload)
 
@@ -61,4 +62,22 @@ def test_api_loads():
     assert sum(c["governs_M"] for c in d["combinations"]) == 4  # en per grupp
     assert d["design"]["uls"]["combination_M"] == "6.10b-Q1"
     assert len(d["diagrams"]["x"]) == len(d["diagrams"]["uls"]["M_max"])
-    assert len(d["logs"]) == 3
+    assert len(d["logs"]) == 4  # laster, kombinationer, böjstyvhet, snittkrafter
+    assert d["system"]["description"] == "Fritt upplagd balk"
+    assert d["design"]["quasi_permanent"]["w"] > 0
+
+
+def test_api_continuous_beam_with_overhang():
+    """Två fack och överhäng: varje fack och stöd får egna dimensionerande värden."""
+    system = {"spans_m": [5, 5, 1.5], "supports": ["pinned", "pinned", "pinned", "free"]}
+    d = Api().loads(0, 300, 500, 4, 2, CASES[:2], system=system)
+    json.dumps(d)
+    assert d["system"]["length"] == 11.5
+    assert [s["label"] for s in d["system"]["supports"]] == ["A", "B", "C", "D"]
+    assert d["system"]["pattern"] is True
+    uls = d["design"]["uls"]
+    assert len(uls["spans"]) == 3
+    assert [s["label"] for s in uls["supports"]] == ["A", "B", "C"]
+    assert uls["supports"][1]["M"] < 0  # stödmoment över mellanstödet
+    assert uls["spans"][2]["cantilever"] is True
+    assert len(d["diagrams"]["uls"]["w_max"]) == len(d["diagrams"]["x"])
