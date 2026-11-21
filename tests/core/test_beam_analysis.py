@@ -296,3 +296,30 @@ def test_gross_stiffness():
     EI_c = gross_stiffness(Q_(33, "GPa"), Q_(300, "mm"), Q_(500, "mm"), log)
     assert log.find("I_c").result.to("mm^4").magnitude == pytest.approx(3.125e9)
     assert EI_c.to("kN*m^2").magnitude == pytest.approx(103125)
+
+
+def test_load_arrangements_have_single_curves():
+    """Samma två fack som test_pattern_loading_two_spans, med 6.10 (1,35/1,5).
+
+    Uppställningen "Q bara i fack 1" är ett vanligt lastfall med en kurva:
+    M_B = −94,5 kNm och max fältmoment 85,35 kNm i fack 1 (handräknat ovan).
+    Uppställningen "Q i båda facken" ger M_B = −128,25 kNm.
+    Fack 2 ger av symmetri samma fältmoment med Q bara i fack 2.
+    """
+    sys = system([L, L], [P, P, P])
+    r = resolve_cases(two_span_cases(), sys.length)
+    cs = generate_combinations(r.cases, annex=national.load("recommended"), method="6.10")
+    de = design_effects(sys, r.cases, cs)
+    arrs = de.get("6.10-Q1").arrangements
+    by_spans = {tuple(a.loaded_spans["Q1"]): a for a in arrs}
+    assert set(by_spans) == {(0,), (1,), (0, 1)}
+    one = by_spans[(0,)]
+    assert one.purposes == ["fältmoment i fack 1"]
+    assert one.factors == {"G1": 1.35, "Q1": 1.5}
+    iB = de.x.index(L)
+    assert one.M[iB] == pytest.approx(-94.5)
+    assert one.peaks[0] == ("M", pytest.approx(69.75 / 28.5), pytest.approx(69.75**2 / 57))
+    assert max(one.M) == pytest.approx(85.352, rel=1e-3)  # kurvan: snittindelningen
+    both = by_spans[(0, 1)]
+    assert "stödmoment i B" in both.purposes
+    assert both.M[iB] == pytest.approx(-128.25)

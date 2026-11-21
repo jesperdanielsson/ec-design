@@ -329,6 +329,7 @@ class Api:
                     "w_max": _q(e.w_max, "mm") if e.w_max is not None else None,
                     "x_w": _q(e.x_w, "m") if e.x_w is not None else None,
                     "loaded_spans": {k: [j + 1 for j in v] for k, v in e.loaded_spans_M.items()},
+                    "arrangements": [_arrangement(a) for a in e.arrangements],
                     "governs_M": gov.get("M") == co.id,
                     "governs_V": gov.get("V") == co.id,
                 }
@@ -397,6 +398,20 @@ class Api:
                 de.log.to_dict(),
             ],
         }
+
+
+def _arrangement(a: Any) -> dict[str, Any]:
+    """En lastuppställning med sina kurvor (M i kNm, V i kN, w i mm)."""
+    r4 = lambda vals: [round(v, 4) for v in vals]  # noqa: E731
+    return {
+        "purposes": a.purposes,
+        "factors": {k: round(v, 6) for k, v in a.factors.items()},
+        "loaded_spans": {k: [j + 1 for j in v] for k, v in a.loaded_spans.items()},
+        "M": r4(a.M),
+        "V": r4(a.V),
+        "w": r4(a.w) if a.w is not None else None,
+        "peaks": [{"quantity": q, "x": round(x, 6), "value": round(v, 6)} for q, x, v in a.peaks],
+    }
 
 
 def _extreme(e: Extreme | None, unit: str) -> dict[str, Any] | None:

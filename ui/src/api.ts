@@ -132,6 +132,16 @@ export interface CombinationResult {
   x_w: number | null;
   /** Belastade fack (från 1) för variabla lastfall vid största fältmoment. */
   loaded_spans: Record<string, number[]>;
+  /** Lastuppställningar med egna kurvor (M kNm, V kN, w mm i samma snitt som diagrams.x). */
+  arrangements: {
+    purposes: string[];
+    factors: Record<string, number>;
+    loaded_spans: Record<string, number[]>;
+    M: number[];
+    V: number[];
+    w: number[] | null;
+    peaks: { quantity: "M" | "V" | "w"; x: number; value: number }[];
+  }[];
   governs_M: boolean;
   governs_V: boolean;
 }

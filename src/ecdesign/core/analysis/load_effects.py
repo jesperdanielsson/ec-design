@@ -56,6 +56,30 @@ class Extreme:
     x: Q_
     loaded_spans: dict[str, list[int]] = field(default_factory=dict)
     """Variabla lastfall: vilka fack (index från 0) som är belastade för detta värde."""
+    used: dict[str, tuple[float, float, list[int]]] = field(default_factory=dict, repr=False)
+    """Faktor och belastade delar per lastfall, dvs. lastuppställningen som ger värdet."""
+
+
+@dataclass
+class LoadArrangement:
+    """En bestämd lastuppställning i en kombination: fasta faktorer och belastade fack.
+
+    Med mönsterbelastning ger en kombination olika uppställningar för olika snitt (t.ex.
+    fältmoment i fack 1 eller stödmoment i B). Varje uppställning är ett vanligt lastfall
+    med en enda M-, V- och nedböjningskurva, som i en handräkning.
+    """
+
+    purposes: list[str]
+    """Vad uppställningen är dimensionerande för, t.ex. "största fältmoment i fack 1"."""
+    factors: dict[str, float]
+    loaded_spans: dict[str, list[int]]
+    M: list[float]
+    """Moment i kNm i varje snitt."""
+    V: list[float]
+    w: list[float] | None
+    """Nedböjning i mm i varje snitt."""
+    peaks: list[tuple[str, float, float]] = field(default_factory=list)
+    """Exakta extremvärden (storhet "M"/"V"/"w", x i m, värde) som uppställningen ger."""
 
 
 @dataclass
@@ -94,6 +118,8 @@ class CombinationEffect:
     w_env: tuple[list[float], list[float]] | None
     """(max, min) nedböjning i mm i varje snitt."""
     loaded_spans_M: dict[str, list[int]] = field(default_factory=dict)
+    arrangements: list[LoadArrangement] = field(default_factory=list)
+    """Lastuppställningarna som ger kombinationens största värden, med egna kurvor."""
 
     @property
     def M_abs(self) -> Q_:
@@ -290,6 +316,7 @@ def design_effects(
 
         reactions = []
         support_M = []
+        support_used: dict[int, dict] = {}
         for k, s in enumerate(system.supports):
             vals = {cid: [p.sol.reactions[k] for p in ps] for cid, ps in model.parts.items()}
             reactions.append(
@@ -299,7 +326,8 @@ def design_effects(
                 support_M.append(Q_(0.0, "kN*m"))
             else:
                 mv = model.values_at("M", xs_sup[k], right=(k == 0))
-                support_M.append(Q_(min(0.0, _combine(combo, mv, -1)[0]), "kN*m"))
+                m_sup, support_used[k] = _combine(combo, mv, -1)
+                support_M.append(Q_(min(0.0, m_sup), "kN*m"))
 
         spans: list[SpanResult] = []
         for j in range(system.n_spans):
@@ -331,6 +359,14 @@ def design_effects(
             V_env=(Vmax, Vmin),
             w_env=env.get("w"),
             loaded_spans_M=top.loaded_spans,
+        )
+        eff.arrangements = _arrangements(
+            model,
+            combo,
+            eff,
+            support_used,
+            _combine(combo, cache["V"][iV], 1 if Vmax[iV] >= -Vmin[iV] else -1)[1],
+            cache,
         )
         effects.append(eff)
         _log_combination(log, model, combo, eff, pts, iV, Vmax[iV] >= -Vmin[iV])
@@ -414,7 +450,62 @@ def _extreme_M(model: _Model, combo: Combination, idx, sign: int, arr: list[floa
             m, u2 = _combine(combo, model.values_at("M", xr), sign)
             if sign * m > sign * best_val + 1e-12:
                 best_val, best_x, used = m, xr, u2
-    return Extreme(Q_(best_val, "kN*m"), Q_(best_x, "m"), _loaded(model, used))
+    return Extreme(Q_(best_val, "kN*m"), Q_(best_x, "m"), _loaded(model, used), used)
+
+
+def _arrangements(
+    model: _Model,
+    combo: Combination,
+    eff: CombinationEffect,
+    support_used: dict[int, dict],
+    V_used: dict,
+    cache: dict[str, list[dict[str, list[float]]]],
+) -> list[LoadArrangement]:
+    """Kombinationens dimensionerande lastuppställningar, var och en med egna kurvor.
+
+    Uppställningar med samma faktorer och belastade fack slås ihop; deras syften listas.
+    """
+    system = model.system
+    xs_sup = system.x_nodes()
+    sources: list[tuple[str, dict, tuple | None]] = []
+    for s in eff.spans:
+        e = s.M_max
+        if e.value.magnitude > TINY and e.used:
+            what = "konsolen" if system.is_cantilever_span(s.index) else f"fack {s.index + 1}"
+            peak = ("M", float(e.x.magnitude), float(e.value.magnitude))
+            sources.append((f"fältmoment i {what}", e.used, peak))
+    for k, used in support_used.items():
+        if eff.support_M[k].magnitude < -TINY:
+            what = "inspänningsmoment" if system.supports[k].value == "fixed" else "stödmoment"
+            peak = ("M", xs_sup[k], float(eff.support_M[k].magnitude))
+            sources.append((f"{what} i {system.label(k)}", used, peak))
+    sources.append(("tvärkraft", V_used, None))
+    if combo.group != "uls":
+        for s in eff.spans:
+            e = s.w_max
+            if e is not None and e.value.magnitude > 1e-6 and e.used:
+                peak = ("w", float(e.x.magnitude), float(e.value.magnitude))
+                sources.append((f"nedböjning i fack {s.index + 1}", e.used, peak))
+    out: dict[tuple, LoadArrangement] = {}
+    n = len(model.pts)
+    for purpose, used, peak in sources:
+        key = tuple(sorted((cid, round(f, 9), tuple(ld)) for cid, (f, _, ld) in used.items()))
+        if key in out:
+            out[key].purposes.append(purpose)
+            if peak:
+                out[key].peaks.append(peak)
+            continue
+        curves = {q: [_fixed(combo, used, cache[q][i]) for i in range(n)] for q in cache}
+        out[key] = LoadArrangement(
+            purposes=[purpose],
+            factors={cid: f for cid, (f, _, _) in used.items()},
+            loaded_spans=_loaded(model, used),
+            M=curves["M"],
+            V=curves["V"],
+            w=curves.get("w"),
+            peaks=[peak] if peak else [],
+        )
+    return list(out.values())
 
 
 def _fixed(combo: Combination, used, values: dict[str, list[float]]) -> float:
@@ -458,7 +549,7 @@ def _extreme_w(model: _Model, combo: Combination, idx, arr: list[float]) -> Extr
         if fm > best:
             best, best_x = fm, xm
     _, used = _combine(combo, model.values_at("w", best_x), +1)
-    return Extreme(Q_(best, "mm"), Q_(best_x, "m"), _loaded(model, used))
+    return Extreme(Q_(best, "mm"), Q_(best_x, "m"), _loaded(model, used), used)
 
 
 # --- Dimensionerande kombination ------------------------------------------------------

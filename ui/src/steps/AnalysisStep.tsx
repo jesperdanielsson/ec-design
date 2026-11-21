@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LoadsResult } from "../api";
-import { ForceDiagram } from "../components/ForceDiagram";
+import { CombinationDiagrams } from "../components/CombinationDiagrams";
 import { Tex } from "../components/Tex";
 import { beamLength, supportX, type BeamInput } from "../model";
 
@@ -160,54 +160,18 @@ export function AnalysisStep({ beam, update, result, error }: Props) {
             </table>
             <p className="muted small">
               Moment ritas på dragen sida: fältmoment nedåt, stödmoment uppåt. Stödmoment räknas i stödets centrum. R min
-              under noll betyder att stödet kan lyftas. Den skuggade ytan i diagrammen är omhyllningen: i varje snitt
-              största och minsta värde av alla kombinationer och lastuppställningar i gruppen.
+              under noll betyder att stödet kan lyftas. Tabellerna sammanställer alla kombinationer och lastuppställningar i
+              gruppen. Diagrammen nedan visar en kombination och en lastuppställning i taget.
             </p>
-            <ForceDiagram
-              title="M"
-              quantity="M"
-              x={result.diagrams.x}
+            <h2>Diagram per lastkombination</h2>
+            <CombinationDiagrams
+              key={group}
+              result={result}
               span_m={span}
               supports_x={supX}
-              unit="kNm"
-              downPositive
-              series={[
-                { label: "Omhyllning", values: env.M_max, fill: "pos" as const },
-                { label: "Omhyllning, min", values: env.M_min, fill: "neg" as const, legend: false },
-              ]}
-              annotate={[
-                ...(design.M_pos > 1e-6 ? [{ x: design.x_M_pos, value: design.M_pos, label: "max" }] : []),
-                ...(design.M_neg < -1e-6 ? [{ x: design.x_M_neg, value: design.M_neg, label: "min" }] : []),
-              ]}
+              group={group}
+              initial={design.combination_M}
             />
-            <ForceDiagram
-              title="V"
-              quantity="V"
-              x={result.diagrams.x}
-              span_m={span}
-              supports_x={supX}
-              unit="kN"
-              series={[
-                { label: "Omhyllning", values: env.V_max, fill: "pos" as const },
-                { label: "Omhyllning, min", values: env.V_min, fill: "neg" as const, legend: false },
-              ]}
-            />
-            {sls && env.w_max && (
-              <ForceDiagram
-                title="δ"
-                quantity="w"
-                x={result.diagrams.x}
-                span_m={span}
-                supports_x={supX}
-                unit="mm"
-                downPositive
-                series={[
-                  { label: "Omhyllning", values: env.w_max, fill: "pos" as const },
-                  ...(env.w_min ? [{ label: "Omhyllning, min", values: env.w_min, fill: "neg" as const, legend: false }] : []),
-                ]}
-                annotate={design.w != null && design.x_w != null ? [{ x: design.x_w, value: design.w, label: "δ" }] : []}
-              />
-            )}
             {result.warnings.map((w) => (
               <p key={w} className="warning">
                 {w}

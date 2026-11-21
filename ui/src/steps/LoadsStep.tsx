@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import type { CombinationResult, LoadOptions, LoadsResult } from "../api";
 import { NumberField } from "../components/Field";
-import { ForceDiagram } from "../components/ForceDiagram";
+import { CombinationDiagrams } from "../components/CombinationDiagrams";
 import { LoadedBeam, caseColor } from "../components/LoadedBeam";
 import { Tex } from "../components/Tex";
 import { beamLength, newId, supportX, type BeamInput, type LoadCaseInput, type LoadInput, type LoadType } from "../model";
@@ -360,7 +360,6 @@ export function LoadsStep({ beam, update, options, result, error }: Props) {
 function DesignSummary({ result, gammaD, safetyClass, beam }: { result: LoadsResult; gammaD?: number; safetyClass: number; beam: BeamInput }) {
   const uls = result.design.uls;
   const qp = result.design.quasi_permanent;
-  const d = result.diagrams;
   const span = beamLength(beam);
   const supX = supportX(beam.spans_m);
   const hasNeg = (uls?.M_neg ?? 0) < -1e-6;
@@ -411,43 +410,12 @@ function DesignSummary({ result, gammaD, safetyClass, beam }: { result: LoadsRes
         )}
       </div>
       <p className="muted small">
-        Säkerhetsklass {safetyClass} ger γd = {fmt(gammaD)}. Diagrammen visar omhyllningen av alla kombinationer i
-        brottgräns och den kvasipermanenta kombinationen.
+        Säkerhetsklass {safetyClass} ger γd = {fmt(gammaD)}. Diagrammen visar en kombination och en lastuppställning
+        i taget; välj i listan.
         {result.system.pattern && " Variabel last är placerad fack för fack där den verkar ogynnsamt."}
       </p>
-      {d.uls && (
-        <>
-          <ForceDiagram
-            title="M"
-            quantity="M"
-            x={d.x}
-            span_m={span}
-            supports_x={supX}
-            unit="kNm"
-            downPositive
-            series={[
-              { label: "Brottgräns (omhyllning)", values: d.uls.M_max, fill: "pos" as const },
-              { label: "Brottgräns, min", values: d.uls.M_min, fill: "neg" as const, legend: false },
-              { label: "Kvasipermanent", values: d.quasi_permanent.M_max, className: "fd-faint", dashed: true },
-            ]}
-            annotate={[
-              ...(hasPos && uls ? [{ x: uls.x_M_pos, value: uls.M_pos, label: "M_Ed" }] : []),
-              ...(hasNeg && uls ? [{ x: uls.x_M_neg, value: uls.M_neg, label: "M_Ed" }] : []),
-            ]}
-          />
-          <ForceDiagram
-            title="V"
-            quantity="V"
-            x={d.x}
-            span_m={span}
-            supports_x={supX}
-            unit="kN"
-            series={[
-              { label: "Brottgräns (omhyllning)", values: d.uls.V_max, fill: "pos" as const },
-              { label: "Brottgräns, min", values: d.uls.V_min, fill: "neg" as const, legend: false },
-            ]}
-          />
-        </>
+      {uls && (
+        <CombinationDiagrams result={result} span_m={span} supports_x={supX} initial={uls.combination_M} />
       )}
     </section>
   );
