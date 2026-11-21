@@ -81,3 +81,5 @@ def test_api_continuous_beam_with_overhang():
     assert uls["supports"][1]["M"] < 0  # stödmoment över mellanstödet
     assert uls["spans"][2]["cantilever"] is True
     assert len(d["diagrams"]["uls"]["w_max"]) == len(d["diagrams"]["x"])
+    arr = d["combinations"][1]["arrangements"]
+    assert len(arr) > 1 and all(len(a["M"]) == len(d["diagrams"]["x"]) for a in arr)
